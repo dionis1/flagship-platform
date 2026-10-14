@@ -1,0 +1,32 @@
+# Local environment files (keep shareable examples)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local credentials and cluster access
+/.docker/
+/.kube/
+/.aws/
+/secrets/
+*.pem
+*.key
+
+# Helm overrides containing machine-specific settings or secrets
+values.local.yaml
+values.local.yml
+values.secret.yaml
+values.secret.yml
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# Editor and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
