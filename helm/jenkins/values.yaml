@@ -1,0 +1,33 @@
+controller:
+  admin:
+    username: admin
+
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  serviceType: ClusterIP
+
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - configuration-as-code
+    - credentials-binding
+    - github
+    - docker-workflow
+
+  persistence:
+    enabled: true
+    size: 5Gi
+
+agent:
+  enabled: true
+
+persistence:
+  enabled: true
+  size: 5Gi
