@@ -81,6 +81,8 @@ spec:
                 checkout scm
 
                 sh '''
+                    git config --global --add safe.directory "$WORKSPACE"
+
                     echo "Repository checkout successful."
                     git rev-parse --show-toplevel
                     git status --short
@@ -239,6 +241,8 @@ EOF
                     sh '''
                         echo "Updating GitOps manifest..."
 
+                        git config --global --add safe.directory "$WORKSPACE"
+
                         sed -i \
                           "s#image: .*#image: ${IMAGE_REPO}:${IMAGE_TAG}#" \
                           kubernetes/dev/demo-app/deployment.yaml
@@ -319,7 +323,7 @@ EOF
             echo "Published image:"
             echo "${IMAGE_REPO}:${IMAGE_TAG}"
             echo ""
-            echo "Next step: ArgoCD deployment."
+            echo "ArgoCD should deploy the new version."
         }
 
         failure {
