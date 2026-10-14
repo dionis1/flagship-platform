@@ -14,14 +14,30 @@ spec:
       tty: true
       securityContext:
         runAsUser: 0
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "500m"
+          memory: "256Mi"
 
     - name: buildkit
-      image: moby/buildkit:rootless
+      image: moby/buildkit:latest
       command:
-        - sh
-        - -c
-        - sleep 99d
+        - buildkitd
+        - --addr
+        - unix:///run/buildkit/buildkitd.sock
+      securityContext:
+        privileged: true
       tty: true
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "1000m"
+          memory: "768Mi"
 '''
             defaultContainer 'tools'
         }
@@ -36,6 +52,8 @@ spec:
         stage('Install Tools') {
             steps {
                 sh '''
+                    echo "Installing CI tools..."
+
                     apk add --no-cache \
                       curl \
                       git \
@@ -46,6 +64,9 @@ spec:
 
                     install -m 0755 kubectl /usr/local/bin/kubectl
 
+                    rm -f kubectl
+
+                    echo "Installed versions:"
                     kubectl version --client
                     git --version
                 '''
@@ -59,7 +80,8 @@ spec:
                         "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
                 }
 
-                echo "Building ${IMAGE_REPO}:${IMAGE_TAG}"
+                echo "Image to build:"
+                echo "${IMAGE_REPO}:${IMAGE_TAG}"
             }
         }
 
@@ -91,13 +113,15 @@ spec:
                     test -f app/Dockerfile
                     test -f app/index.html
 
+                    test -f kubernetes/dev/namespace.yaml
                     test -f kubernetes/dev/demo-app/deployment.yaml
                     test -f kubernetes/dev/demo-app/service.yaml
 
                     test -f helm/datadog/values.yaml
                     test -f helm/jenkins/values.yaml
 
-                    echo "All tests passed."
+                    echo "All required files exist."
+                    echo "Basic tests passed."
                 '''
             }
         }
@@ -113,7 +137,13 @@ spec:
                 ]) {
 
                     sh '''
+                        echo "Preparing GHCR authentication..."
+
                         mkdir -p "$WORKSPACE/.docker"
+
+                        # Prevent credentials or encoded credentials
+                        # from being printed to Jenkins logs.
+                        set +x
 
                         AUTH=$(printf '%s:%s' \
                           "$GHCR_USER" "$GHCR_TOKEN" \
@@ -128,18 +158,51 @@ spec:
   }
 }
 EOF
+
+                        chmod 600 "$WORKSPACE/.docker/config.json"
+
+                        set -x
                     '''
 
                     container('buildkit') {
                         sh '''
                             export DOCKER_CONFIG="$WORKSPACE/.docker"
 
-                            buildctl-daemonless.sh build \
+                            BUILDKIT_ADDR="unix:///run/buildkit/buildkitd.sock"
+
+                            echo "Waiting for BuildKit daemon..."
+
+                            COUNT=0
+
+                            until buildctl \
+                              --addr "$BUILDKIT_ADDR" \
+                              debug workers >/dev/null 2>&1
+                            do
+                                COUNT=$((COUNT + 1))
+
+                                if [ "$COUNT" -ge 30 ]; then
+                                    echo "BuildKit failed to become ready."
+                                    exit 1
+                                fi
+
+                                sleep 1
+                            done
+
+                            echo "BuildKit is ready."
+
+                            echo "Building:"
+                            echo "${IMAGE_REPO}:${IMAGE_TAG}"
+
+                            buildctl \
+                              --addr "$BUILDKIT_ADDR" \
+                              build \
                               --frontend dockerfile.v0 \
                               --local context=app \
                               --local dockerfile=app \
                               --output \
                               type=image,name=${IMAGE_REPO}:${IMAGE_TAG},push=true
+
+                            echo "Container image pushed successfully."
                         '''
                     }
 
@@ -161,25 +224,44 @@ EOF
                 ]) {
 
                     sh '''
-                        echo "Updating Kubernetes image..."
+                        echo "Updating GitOps manifest..."
 
                         sed -i \
                           "s#image: .*#image: ${IMAGE_REPO}:${IMAGE_TAG}#" \
                           kubernetes/dev/demo-app/deployment.yaml
 
+                        echo "New image:"
+                        grep "image:" \
+                          kubernetes/dev/demo-app/deployment.yaml
+
                         git config user.name "Jenkins CI"
                         git config user.email "jenkins@localhost"
 
-                        git add kubernetes/dev/demo-app/deployment.yaml
+                        git add \
+                          kubernetes/dev/demo-app/deployment.yaml
+
+                        if git diff \
+                          --cached \
+                          --quiet
+                        then
+                            echo "No GitOps change required."
+                            exit 0
+                        fi
 
                         git commit \
                           -m "Deploy ${IMAGE_TAG} via Jenkins"
 
+                        set +x
+
                         cat > /tmp/git-askpass.sh <<'EOF'
 #!/bin/sh
 case "$1" in
-    *Username*) echo "$GIT_USER" ;;
-    *Password*) echo "$GIT_TOKEN" ;;
+    *Username*)
+        echo "$GIT_USER"
+        ;;
+    *Password*)
+        echo "$GIT_TOKEN"
+        ;;
 esac
 EOF
 
@@ -192,8 +274,25 @@ EOF
                           HEAD:main
 
                         rm -f /tmp/git-askpass.sh
+
+                        set -x
+
+                        echo "GitOps manifest pushed successfully."
                     '''
                 }
+            }
+        }
+
+        stage('Deployment Summary') {
+            steps {
+                echo "------------------------------------"
+                echo "CI pipeline completed."
+                echo "Image:"
+                echo "${IMAGE_REPO}:${IMAGE_TAG}"
+                echo ""
+                echo "ArgoCD should now detect the Git change"
+                echo "and synchronize the application."
+                echo "------------------------------------"
             }
         }
     }
@@ -201,18 +300,26 @@ EOF
     post {
 
         success {
-            echo "CI successful."
-            echo "Image: ${IMAGE_REPO}:${IMAGE_TAG}"
-            echo "ArgoCD will deploy the new version."
+            echo "===================================="
+            echo "CI PIPELINE SUCCESS"
+            echo "===================================="
+            echo "Published image:"
+            echo "${IMAGE_REPO}:${IMAGE_TAG}"
+            echo ""
+            echo "Next step: ArgoCD deployment."
         }
 
         failure {
-            echo "CI pipeline failed."
+            echo "===================================="
+            echo "CI PIPELINE FAILED"
+            echo "===================================="
+            echo "Check the failed stage above."
         }
 
         always {
             sh '''
                 rm -rf "$WORKSPACE/.docker" || true
+                rm -f /tmp/git-askpass.sh || true
             '''
         }
     }
