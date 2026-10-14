@@ -43,6 +43,10 @@ spec:
         }
     }
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
     environment {
         IMAGE_REPO = 'ghcr.io/dionis1/flagship-demo-app'
     }
@@ -63,12 +67,23 @@ spec:
                       "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
 
                     install -m 0755 kubectl /usr/local/bin/kubectl
-
                     rm -f kubectl
 
                     echo "Installed versions:"
                     kubectl version --client
                     git --version
+                '''
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+
+                sh '''
+                    echo "Repository checkout successful."
+                    git rev-parse --show-toplevel
+                    git status --short
                 '''
             }
         }
@@ -141,8 +156,6 @@ spec:
 
                         mkdir -p "$WORKSPACE/.docker"
 
-                        # Prevent credentials or encoded credentials
-                        # from being printed to Jenkins logs.
                         set +x
 
                         AUTH=$(printf '%s:%s' \
