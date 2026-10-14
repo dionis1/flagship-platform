@@ -6,7 +6,31 @@ The project models a production-style delivery workflow on a lightweight k3s clu
 
 ## Project evidence
 
-Screenshots of the running platform will be collected in [`docs/screenshots/`](docs/screenshots/). The capture checklist covers a successful Jenkins pipeline, Argo CD **Synced / Healthy**, the Datadog cluster view, and the running demo application. Screenshots are pending; the repository currently documents configuration rather than visual proof of a live deployment.
+Screenshots from the local platform captured on **14 October 2026** show the CI pipeline, GitOps deployment, and monitoring in operation. See the [full screenshot gallery](docs/screenshots/README.md) for additional views.
+
+### Successful Jenkins pipeline
+
+Builds **#15 and #16** completed all stages successfully, including image publishing and the GitOps manifest update. Earlier failed runs remain visible in the build history.
+
+![Jenkins pipeline stages showing successful builds 15 and 16](docs/screenshots/jenkins-pipeline.png)
+
+### Argo CD: Synced and Healthy
+
+The `demo-app-dev` Application is **Synced** and **Healthy**, with a running pod. The view shows deployment commit `beba98c` and Jenkins image tag `16-379f6ff`, connecting build #16 to the GitOps rollout.
+
+![Argo CD showing a Synced and Healthy application with its workload tree](docs/screenshots/argocd-healthy.png)
+
+### Datadog cluster inventory
+
+The Kubernetes Explorer shows the `devops-portfolio` cluster's namespaces, pod statuses, CPU usage, and memory usage, including `dev`, `jenkins`, `argocd`, and `datadog`.
+
+![Datadog Kubernetes namespace inventory with cluster resource usage](docs/screenshots/datadog-cluster-namespaces.png)
+
+### Datadog deployment monitoring
+
+The deployment replica monitor displays metrics over a four-hour window, with **12 OK** groups and **1 No Data** group at capture time. The [monitor overview](docs/screenshots/datadog-monitors.png) also records two active alerts; these captures document the observed state rather than an entirely healthy cluster.
+
+![Datadog deployment replica monitor with populated time-series charts](docs/screenshots/datadog-deployment-replicas.png)
 
 ## Architecture
 
@@ -170,4 +194,4 @@ The values target the Datadog EU site (`datadoghq.eu`), name the cluster `devops
 
 This project is a practical exercise in CI/CD design, Kubernetes workload management, GitOps, resource planning, and platform troubleshooting. The application page describes AI use as learning and troubleshooting assistance, with infrastructure setup, debugging, testing, and deployment performed and verified by the project author.
 
-This README documents the configuration present in the repository; live cluster operation and deployment results need to be verified in the running environment.
+This README documents the repository configuration and the platform state shown in the captured screenshots. The screenshots are historical evidence; current cluster operation and deployment results need to be verified in the running environment.

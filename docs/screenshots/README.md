@@ -1,32 +1,75 @@
-# Project screenshots
+# Project screenshot gallery
 
-Capture these four views from the running platform and save them in this directory:
+Screenshots supplied by the project author from the local platform on **14 October 2026**. They capture different moments during the session, so statuses and build numbers can differ between views. The main [README](../../README.md#project-evidence) highlights the CI, GitOps, and monitoring evidence.
 
-| Filename | What the screenshot should show |
-| --- | --- |
-| `jenkins-pipeline.png` | A successful build with pipeline stages, build number, and published image tag visible. |
-| `argocd-healthy.png` | The `demo-app-dev` Application showing **Synced** and **Healthy**, ideally with its Git revision and workload tree. |
-| `datadog-cluster.png` | The `devops-portfolio` cluster with nodes or workloads and populated metrics; include the time range. |
-| `demo-app.png` | The application served by the Kubernetes workload, accessed through port forwarding or its configured endpoint. |
+The Jenkins and Argo CD views connect build **#16**, source revision `379f6ff`, image tag `16-379f6ff`, and deployment revision `beba98c`. These identify the captured deployment, not necessarily the latest version of the repository.
 
-Use the same deployment for the Jenkins, Argo CD, and application captures where possible. Record the capture date, source commit, image tag, and any relevant build number alongside the images so reviewers can connect the evidence to the code.
+## Jenkins pipeline
 
-Before publishing, crop or redact credentials, API keys, tokens, and unrelated private information. Keep the status indicators and project identifiers readable.
+Successful builds #15 and #16, with all pipeline stages visible.
 
-Once the actual files are added, replace the pending paragraph in the main README's **Project evidence** section with these embeds and short captions:
+![Jenkins pipeline](jenkins-pipeline.png)
 
-```markdown
-### Successful Jenkins pipeline
-![Successful Jenkins pipeline](docs/screenshots/jenkins-pipeline.png)
+## Jenkins dashboard
 
-### Argo CD: Synced and Healthy
-![Argo CD Application showing Synced and Healthy](docs/screenshots/argocd-healthy.png)
+Job overview showing build #15 as the latest successful run at capture time.
 
-### Datadog cluster monitoring
-![Datadog cluster view with workload metrics](docs/screenshots/datadog-cluster.png)
+![Jenkins dashboard](jenkins-dashboard.png)
 
-### Running demo application
-![Demo application running on Kubernetes](docs/screenshots/demo-app.png)
-```
+## Jenkins build changes
 
-These are capture instructions. No screenshots have been added yet.
+Build #16 source changes, including source revision `379f6ff`.
+
+![Jenkins build changes](jenkins-build-changes.png)
+
+## Argo CD workload tree
+
+Synced and Healthy application at deployment revision `beba98c`, referencing image tag `16-379f6ff`.
+
+![Argo CD workload tree](argocd-healthy.png)
+
+## Argo CD application overview
+
+Repository path, development namespace, and application status.
+
+![Argo CD application overview](argocd-applications.png)
+
+## Argo CD Service details
+
+The demo application ClusterIP Service in the `dev` namespace.
+
+![Argo CD Service details](argocd-service-details.png)
+
+## Datadog cluster namespaces
+
+Namespace inventory with pod statuses and CPU and memory usage.
+
+![Datadog cluster namespaces](datadog-cluster-namespaces.png)
+
+## Datadog containers
+
+Container inventory and resource usage; this view also includes other local lab containers.
+
+![Datadog containers](datadog-containers.png)
+
+## Datadog Kubernetes services
+
+Service inventory including the demo app, Jenkins, Argo CD, and Datadog.
+
+![Datadog Kubernetes services](datadog-services.png)
+
+## Datadog monitor overview
+
+Monitor list showing 13 OK monitors and two alerts at capture time.
+
+![Datadog monitor overview](datadog-monitors.png)
+
+## Datadog deployment replica monitor
+
+Four-hour metric window with 12 OK groups and one No Data group.
+
+![Datadog deployment replica monitor](datadog-deployment-replicas.png)
+
+## Additional evidence to capture
+
+A browser screenshot of the demo web page is not included yet. The Argo CD views show the running workload and Service; a web page capture would add evidence of the application response.
