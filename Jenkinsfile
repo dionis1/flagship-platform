@@ -7,19 +7,26 @@ kind: Pod
 spec:
   containers:
     - name: kubectl
-      image: bitnami/kubectl:latest
+      image: alpine:3.20
       command:
         - cat
       tty: true
+      securityContext:
+        runAsUser: 0
 '''
             defaultContainer 'kubectl'
         }
     }
 
     stages {
-        stage('Checkout') {
+        stage('Install kubectl') {
             steps {
-                checkout scm
+                sh '''
+                    apk add --no-cache curl
+                    curl -LO "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+                    install -m 0755 kubectl /usr/local/bin/kubectl
+                    kubectl version --client
+                '''
             }
         }
 
@@ -42,8 +49,6 @@ spec:
         stage('Basic Tests') {
             steps {
                 sh '''
-                    echo "Running repository checks..."
-
                     test -f kubernetes/dev/demo-app/deployment.yaml
                     test -f kubernetes/dev/demo-app/service.yaml
                     test -f helm/datadog/values.yaml
