@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Flagship Platform</title>
+</head>
+<body>
+    <h1>DevOps Flagship Platform</h1>
+
+    <h2>Project Goal</h2>
+    <p>
+        This project demonstrates a complete local DevOps and GitOps workflow
+        using Kubernetes, Jenkins, ArgoCD, GitHub, and Datadog.
+    </p>
+
+    <p>
+        The goal is to simulate a production-style software delivery platform
+        on a local machine while keeping the architecture lightweight enough
+        to run on limited hardware.
+    </p>
+
+    <h2>How It Works</h2>
+
+    <p>
+        Application code and Kubernetes configuration are stored in GitHub.
+        Jenkins runs inside a k3s Kubernetes cluster and uses temporary
+        Kubernetes agent pods for CI jobs.
+    </p>
+
+    <p>
+        The Jenkins pipeline validates Kubernetes manifests, runs basic tests,
+        builds a container image, pushes the image to a container registry,
+        and updates the desired image version in Git.
+    </p>
+
+    <p>
+        ArgoCD watches the Git repository and automatically synchronizes the
+        Kubernetes cluster with the desired state stored in Git.
+        Jenkins does not deploy directly to Kubernetes.
+    </p>
+
+    <p>
+        Datadog monitors the Kubernetes cluster, application workloads,
+        resource usage, and platform health.
+    </p>
+
+    <h2>Why This Architecture?</h2>
+
+    <p>
+        Jenkins is responsible for Continuous Integration: validation,
+        testing, building, and publishing application artifacts.
+    </p>
+
+    <p>
+        ArgoCD is responsible for Continuous Delivery using GitOps.
+        This separation keeps Git as the source of truth and prevents
+        the CI system from directly modifying the production state.
+    </p>
+
+    <p>
+        Ephemeral Jenkins agents are used so build environments exist only
+        while a pipeline is running, which reduces resource usage and avoids
+        permanently running unnecessary build workers.
+    </p>
+
+    <h2>Technologies</h2>
+
+    <ul>
+        <li>k3s / Kubernetes</li>
+        <li>Jenkins CI</li>
+        <li>ArgoCD</li>
+        <li>GitHub</li>
+        <li>Docker / OCI Containers</li>
+        <li>Datadog</li>
+        <li>Helm</li>
+        <li>kubectl</li>
+    </ul>
+
+    <h2>What I Learned</h2>
+
+    <p>
+        Through this project I practiced Kubernetes workload management,
+        CI/CD pipeline design, GitOps deployment patterns, Kubernetes RBAC,
+        resource requests and limits, monitoring, troubleshooting, and
+        running CI workloads with ephemeral Kubernetes agents.
+    </p>
+
+    <h2>AI Assistance</h2>
+
+    <p>
+        AI was used as a learning and troubleshooting assistant during the
+        project. It helped explain architecture choices, identify errors,
+        suggest configuration changes, and improve documentation.
+        The infrastructure, configuration, testing, debugging, and deployment
+        steps were performed and verified by me.
+    </p>
+
+</body>
+</html>
