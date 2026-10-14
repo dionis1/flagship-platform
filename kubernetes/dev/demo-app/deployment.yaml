@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: demo-app
-          image: ghcr.io/dionis1/flagship-demo-app:15-329ba7f
+          image: ghcr.io/dionis1/flagship-demo-app:16-379f6ff
           ports:
             - containerPort: 80
           resources:
