@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: demo-app
-          image: nginx:alpine
+          image: ghcr.io/dionis1/flagship-demo-app:15-329ba7f
           ports:
             - containerPort: 80
           resources:
