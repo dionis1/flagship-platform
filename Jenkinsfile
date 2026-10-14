@@ -1,5 +1,20 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: kubectl
+      image: bitnami/kubectl:latest
+      command:
+        - cat
+      tty: true
+'''
+            defaultContainer 'kubectl'
+        }
+    }
 
     options {
         timestamps()
@@ -31,7 +46,7 @@ pipeline {
         stage('Basic Tests') {
             steps {
                 sh '''
-                    echo "Running basic repository checks..."
+                    echo "Running repository checks..."
 
                     test -f kubernetes/dev/demo-app/deployment.yaml
                     test -f kubernetes/dev/demo-app/service.yaml
@@ -46,11 +61,11 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline completed successfully.'
+            echo 'CI pipeline completed successfully.'
         }
 
         failure {
-            echo 'Pipeline failed.'
+            echo 'CI pipeline failed.'
         }
     }
 }
