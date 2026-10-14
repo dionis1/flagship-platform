@@ -93,8 +93,12 @@ spec:
         stage('Prepare') {
             steps {
                 script {
-                    env.IMAGE_TAG =
-                        "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
+                    def shortCommit = sh(
+                        script: 'git rev-parse --short=7 HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}-${shortCommit}"
                 }
 
                 echo "Image to build:"
@@ -254,12 +258,9 @@ EOF
                         git config user.name "Jenkins CI"
                         git config user.email "jenkins@localhost"
 
-                        git add \
-                          kubernetes/dev/demo-app/deployment.yaml
+                        git add kubernetes/dev/demo-app/deployment.yaml
 
-                        if git diff \
-                          --cached \
-                          --quiet
+                        if git diff --cached --quiet
                         then
                             echo "No GitOps change required."
                             exit 0
