@@ -16,10 +16,6 @@ spec:
         }
     }
 
-    options {
-        timestamps()
-    }
-
     stages {
         stage('Checkout') {
             steps {
