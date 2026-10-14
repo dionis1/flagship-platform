@@ -35,13 +35,15 @@ spec:
                 sh '''
                     echo "Checking Kubernetes manifests..."
 
-                    kubectl apply \
-                      --dry-run=client \
-                      -f kubernetes/dev/namespace.yaml
+                    kubectl create \
+  --dry-run=client \
+  -f kubernetes/dev/namespace.yaml \
+  -o yaml > /dev/null
 
-                    kubectl apply \
-                      --dry-run=client \
-                      -f kubernetes/dev/demo-app/
+kubectl create \
+  --dry-run=client \
+  -f kubernetes/dev/demo-app/ \
+  -o yaml > /dev/null
                 '''
             }
         }
