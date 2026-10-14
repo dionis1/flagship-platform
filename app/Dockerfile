@@ -1,4 +1,4 @@
-FROM nginx:alpine
+FROM nginx:1.30.5-alpine
 
 LABEL org.opencontainers.image.source="https://github.com/dionis1/flagship-platform"
 LABEL org.opencontainers.image.description="Demo app for the DevOps flagship platform"

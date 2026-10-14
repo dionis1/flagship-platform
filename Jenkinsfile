@@ -23,7 +23,7 @@ spec:
           memory: "256Mi"
 
     - name: buildkit
-      image: moby/buildkit:latest
+      image: moby/buildkit:v0.33.1
       command:
         - buildkitd
         - --addr

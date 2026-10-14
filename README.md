@@ -54,8 +54,8 @@ flowchart LR
 - **CI pipeline design:** manifest validation, repository checks, image builds, registry publishing, and automated Git updates.
 - **GitOps delivery:** automated synchronization, pruning, and drift correction through Argo CD.
 - **Ephemeral build infrastructure:** Jenkins creates Kubernetes agent pods containing tools and a BuildKit daemon.
-- **Container packaging:** a static HTML application served by `nginx:alpine`.
-- **Kubernetes workload configuration:** a development namespace, Deployment, ClusterIP Service, and explicit CPU and memory requests and limits.
+- **Container packaging:** a static HTML application served by `nginx:1.30.5-alpine`.
+- **Kubernetes workload configuration:** a development namespace, Deployment, ClusterIP Service, HTTP readiness and liveness probes, and explicit CPU and memory requests and limits.
 - **Platform configuration:** Helm values for Jenkins resources and persistence, plus Datadog cluster metrics.
 - **Credential handling:** Jenkins credential bindings for registry and Git access, with temporary authentication files removed after builds.
 
@@ -177,16 +177,18 @@ The values target the Datadog EU site (`datadoghq.eu`), name the cluster `devops
 
 - **Small application, visible delivery path:** a static page makes it easy to inspect the image build and deployment flow without additional application dependencies.
 - **Resource-conscious configuration:** the app runs one replica with requests of `50m` CPU and `32Mi` memory, and limits of `200m` CPU and `128Mi` memory. Jenkins also has explicit resource settings and persistence configuration.
-- **Build-specific image tags:** each pipeline run publishes a new tag instead of reusing a shared deployment tag. Base images and the BuildKit image are currently unpinned.
-- **Development environment:** the repository currently defines one environment, with no ingress, TLS, application health probes, or application-specific automated test suite. The pipeline's basic tests check file presence; manifest validation is a separate stage.
+- **Build-specific image tags:** each pipeline run publishes a new tag instead of reusing a shared deployment tag. NGINX is pinned to `1.30.5-alpine` and BuildKit to `v0.33.1`. Version tags make upgrades explicit, but digest pinning would provide immutable image references. The Alpine tools image still uses the `3.20` release tag.
+- **Application health:** both probes request `/` on port 80. Readiness starts after 5 seconds and runs every 5 seconds; three consecutive failures remove the pod from Service endpoints. Liveness starts after 10 seconds and runs every 10 seconds; three consecutive failures trigger a container restart. Each request has a 2-second timeout.
+- **Development environment:** the repository currently defines one environment, with no ingress, TLS, or application-specific automated test suite. The pipeline's basic tests check file presence; manifest validation is a separate stage.
+- **Lab security and promotion tradeoffs:** Jenkins pushes deployment commits directly to `main`, and its BuildKit agent runs privileged. These keep the local workflow simple; production adoption would require tighter build isolation and a reviewed promotion workflow. Jenkins plugin versions and Helm chart versions are not pinned in this repository.
 - **Separate CI and delivery status:** Jenkins success means the image was published and the manifest update was pushed. It does not confirm that Argo CD synchronized successfully or that the rollout is healthy.
 
 ## Future improvements
 
-- Add readiness and liveness probes, plus an HTTP smoke test after deployment.
-- Pin base images and platform chart versions for reproducible builds.
-- Add image vulnerability scanning and stricter manifest validation.
-- Extend the GitOps layout with staging and production promotion.
+- Add an HTTP smoke test after deployment.
+- Pin image digests, Jenkins plugin versions, and platform chart versions for stronger reproducibility.
+- Add a lightweight image scan, such as Trivy, before publishing or promoting images, plus stricter manifest validation.
+- Extend the GitOps layout with staging and production promotion through pull requests or a dedicated environment repository or branch.
 - Add ingress and TLS, Datadog dashboards and alerts, and documented cluster bootstrap steps.
 - Evaluate rootless BuildKit and tighter agent permissions.
 
