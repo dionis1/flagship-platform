@@ -4,6 +4,10 @@ A local DevOps portfolio project demonstrating container delivery through **Jenk
 
 The project models a production-style delivery workflow on a lightweight k3s cluster. A small NGINX application keeps the focus on platform engineering: building images, managing Kubernetes workloads, tracking deployments in Git, and configuring observability.
 
+## Project evidence
+
+Screenshots of the running platform will be collected in [`docs/screenshots/`](docs/screenshots/). The capture checklist covers a successful Jenkins pipeline, Argo CD **Synced / Healthy**, the Datadog cluster view, and the running demo application. Screenshots are pending; the repository currently documents configuration rather than visual proof of a live deployment.
+
 ## Architecture
 
 ```mermaid
