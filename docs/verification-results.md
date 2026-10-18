@@ -40,3 +40,5 @@ A subsequent retry rebuilt the lab as k3s v1.31.14 inside k3d, with a 4.5 GiB no
 External GHCR/GitHub deployment credentials and the Datadog API key were absent from the saved configuration. Full new-image Jenkins delivery and Datadog monitoring still require those credentials. Automatic build triggers remain disabled pending the documented acceptance checks.
 
 The next live Jenkins run also exposed a Declarative environment precedence issue: a fixed top-level `PIPELINE_ACTION=skip` overrode the dynamically classified action. That fixed declaration was removed so the classifier can select the delivery stages. A successful skipped job must not be confused with a successful full delivery.
+
+The subsequent full-path run reached the separate delivery pod and revealed that Git configuration was attempted before installing Git in that fresh Alpine container. Tool bootstrap now runs before Git configuration in both validation/delivery pods. These live-run fixes are distinct from the earlier syntax and unit checks.

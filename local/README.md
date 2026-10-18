@@ -17,6 +17,16 @@ Private kubeconfig, binaries, installation logs, and local images live under ign
 
 The Jenkins chart is pinned to 5.9.69. Its local image bundles the pipeline, Kubernetes, Git, credential-binding, configuration-as-code, and Job DSL plugins. `local/jenkins-values.yaml` creates a trusted-main, manual-only job named `flagship-platform-ci`. Optional Argo CD Dex, ApplicationSet, and notification controllers are scaled to zero for this lab.
 
+## Rebuild from source
+
+Requires Docker, Python 3 with PyYAML, kubectl, and Helm on Linux AMD64. The bootstrap downloads checksum-pinned k3d, builds Jenkins with the exact recorded plugin versions, creates or starts the isolated cluster, and installs the pinned charts/manifests:
+
+```bash
+./local/bootstrap.sh
+```
+
+It never restores external credentials from source control.
+
 ## Start and stop without deleting data
 
 ```bash

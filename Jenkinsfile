@@ -90,7 +90,7 @@ spec:
             }
             steps {
                 unstash 'source'
-                sh 'git config --global --add safe.directory "$WORKSPACE"; sh ci/install-tools.sh; sh ci/validate.sh'
+                sh 'sh ci/install-tools.sh; git config --global --add safe.directory "$WORKSPACE"; sh ci/validate.sh'
             }
             post {
                 always { archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true }
@@ -131,7 +131,7 @@ spec:
                 stage('Tools and manifest validation') {
                     steps {
                         unstash 'source'
-                        sh 'git config --global --add safe.directory "$WORKSPACE"; sh ci/install-tools.sh; sh ci/validate.sh'
+                        sh 'sh ci/install-tools.sh; git config --global --add safe.directory "$WORKSPACE"; sh ci/validate.sh'
                     }
                 }
                 stage('Build candidate image') {
