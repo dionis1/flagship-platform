@@ -1,0 +1,49 @@
+{
+  "verified_at": "2026-10-18T14:08:43.638326+00:00",
+  "jenkins": {
+    "build": 6,
+    "result": "SUCCESS",
+    "source_revision": "0fe3443c80372dedbfc2d43160af73f716e8faf2",
+    "duration_seconds": 320.8,
+    "local_url": "http://localhost:8080/job/flagship-platform-ci/6/"
+  },
+  "tests": {
+    "passed": 43,
+    "skipped": 0
+  },
+  "image": {
+    "reference": "ghcr.io/dionis1/flagship-demo-app@sha256:fd714f87a0fc1e35864b71e843b9f515425af777e9b30b0ac3c5aa9d28fb1033",
+    "published": true,
+    "http_smoke": "passed"
+  },
+  "scan": {
+    "tool": "Trivy v0.76.0",
+    "policy": [
+      "HIGH",
+      "CRITICAL"
+    ],
+    "findings": 0
+  },
+  "deployment": {
+    "git_revision": "3bcfa13c0f31197600f9183f3e21eebb2c31b752",
+    "argocd_sync": "Synced",
+    "argocd_health": "Healthy",
+    "expected_image_verified": true,
+    "service_http": "passed"
+  },
+  "followup": {
+    "build": 7,
+    "result": "SUCCESS",
+    "action": "skip",
+    "generated_commit_did_not_rebuild": true
+  },
+  "concurrency": {
+    "second_run_blocked_until_first_completed": true
+  },
+  "datadog": "intentionally disabled",
+  "limits": [
+    "Snapshot from the local lab; live status can change.",
+    "GitHub webhook delivery is not enabled or tested by this record.",
+    "Mixed application/manifest classification and external Git races are covered by automated regression tests."
+  ]
+}

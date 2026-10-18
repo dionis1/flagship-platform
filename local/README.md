@@ -50,7 +50,7 @@ Do not paste passwords or tokens into chat. Argo CD serves HTTP only on the loop
 
 ## Restore external credentials
 
-The old cluster's project credentials were not available. Restore the two Jenkins credential IDs using the UI or this interactive helper on your PC:
+The project credentials were restored locally and are not stored in Git. On a fresh rebuild, restore the two Jenkins credential IDs using the UI or this interactive helper on your PC:
 
 ```bash
 python3 local/configure-credentials.py
@@ -58,7 +58,7 @@ python3 local/configure-credentials.py
 
 The helper prompts with hidden input and sends tokens only to local Jenkins/the local Kubernetes API. It does not store them in source files. Audit token scopes as described in `docs/ci-verification.md` before entering them. For existing credential IDs, edit them in Jenkins rather than rerunning the create helper.
 
-Datadog installation requires the API key Secret created by the helper. After that:
+Datadog is intentionally off in the current rebuilt lab. Enabling it requires the API key Secret created by the helper. After that:
 
 ```bash
 . local/env.sh

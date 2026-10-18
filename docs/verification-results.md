@@ -2,6 +2,21 @@
 
 This record distinguishes local execution from cluster-dependent acceptance checks. The screenshot gallery predates these changes.
 
+## End-to-end delivery — passed
+
+After the credentials were restored and the live integration fixes were applied, **Jenkins build #6 succeeded end to end**:
+
+- Source revision: `0fe3443c80372dedbfc2d43160af73f716e8faf2`.
+- All **43 regression tests** passed without skips; all 12 manifests passed strict validation.
+- The candidate was published to GHCR, scanned with **zero HIGH/CRITICAL findings**, and passed its real Kubernetes HTTP test.
+- Git promotion created deployment commit `3bcfa13c0f31197600f9183f3e21eebb2c31b752`.
+- Argo CD automatically reconciled that exact commit and became Synced/Healthy. The expected image digest, complete rollout, ready pod, and HTTP response through the Service were verified before Jenkins reported success.
+- A manually queued second run remained blocked while build #6 was active. It then ran as **build #7**, classified the generated deployment commit as `skip`, and finished successfully without another image build or Git promotion.
+
+The [evidence summary](evidence/latest-delivery.json) was assembled from Jenkins' archived build metadata, Trivy report, HTTP test results, deployment result, test output, and build/queue API responses. Full build artifacts remain in the local [Jenkins build #6](http://localhost:8080/job/flagship-platform-ci/6/). Local links require this PC's lab to be running.
+
+GitHub webhook delivery remains disabled and needs its own integration checks before enabling it. Mixed-change filtering and competing external Git updates were tested with temporary repositories in the regression suite. Datadog is intentionally disabled at the user's request. The earlier records below document the failures and fixes encountered before this successful run.
+
 ## Executed successfully
 
 - **39 Python regression tests**, including real loopback HTTP requests, temporary Git repositories, image-only/documentation/mixed change filtering, spoofed skip messages, missing build history, stale promotion rejection, a competing deployment, a non-fast-forward Git push race, rollout-state checks, Service HTTP failure, first-sync delay, and a newer revision appearing during verification.
@@ -43,7 +58,7 @@ The next live Jenkins run also exposed a Declarative environment precedence issu
 
 The subsequent full-path run reached the separate delivery pod and revealed that Git configuration was attempted before installing Git in that fresh Alpine container. Tool bootstrap now runs before Git configuration in both validation/delivery pods. These live-run fixes are distinct from the earlier syntax and unit checks.
 
-### Latest live Jenkins result
+### Earlier credential-blocked Jenkins result
 
 [Local build #4](http://localhost:8080/job/flagship-platform-ci/4/) checked out `d7a33c1`, selected the **build** path, provisioned both agent pods, installed the checksum-verified toolchain, validated all 12 resources, and passed **all 39 tests without skips** in the delivery agent. It then failed at the credential binding for candidate publication:
 
@@ -51,7 +66,7 @@ The subsequent full-path run reached the separate delivery pod and revealed that
 Could not find credentials entry with ID 'ghcr-creds'
 ```
 
-No new candidate was published or promoted in that run. `github-push` and the Datadog key are also not restored. Those external secrets are the remaining prerequisite for full new-image delivery and monitoring; they must be entered locally using `local/configure-credentials.py` or the Jenkins UI.
+No new candidate was published or promoted in that run. At that point `github-push` and the Datadog key were also not restored. Those external secrets were a remaining prerequisite; they can be entered locally using `local/configure-credentials.py` or the Jenkins UI.
 
 The live verifier was additionally tested against a deliberately wrong revision on the real Healthy application: it failed as intended and removed the previous success record. Verification of the correct revision then succeeded. Argo CD subsequently synchronized the pushed runtime fixes and continued reporting Healthy.
 
