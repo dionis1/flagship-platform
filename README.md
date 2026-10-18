@@ -2,37 +2,33 @@
 
 A local DevOps portfolio project demonstrating container delivery through **Jenkins, Kubernetes, GitHub Container Registry, and Argo CD**, with Helm configuration for Datadog monitoring.
 
+> **Portfolio demonstration only.** This repository is a personal learning and showcase project. It is **not intended for real development, staging, or production workloads**, shared infrastructure, or sensitive data. The `dev` namespace is part of the demonstration, not a supported development platform.
+
 The project models a production-style delivery workflow on a lightweight k3s cluster. A small NGINX application keeps the focus on platform engineering: building images, managing Kubernetes workloads, tracking deployments in Git, and configuring observability.
 
 ## Project evidence
 
 **Latest live verification — 18 October 2026:** Jenkins build **#6** passed all **43 tests**, the image scan with **zero HIGH/CRITICAL findings**, the Kubernetes image HTTP test, Git promotion, and exact-revision Argo CD/Service verification. Builds **#7** and **#8** then skipped generated deployment and documentation-only commits without rebuilding. See the [artifact-derived evidence summary](docs/evidence/latest-delivery.json) and [verification record](docs/verification-results.md). Datadog is intentionally off in the rebuilt lab.
 
-Screenshots from the local platform captured on **14 October 2026** show the CI pipeline, GitOps deployment, and monitoring in operation. See the [full screenshot gallery](docs/screenshots/README.md) for additional views.
+Fresh screenshots captured on **18 October 2026** show the rebuilt lab. Older Datadog captures remain in the [full gallery](docs/screenshots/README.md), explicitly labeled historical; Datadog was not enabled for this session.
 
 ### Successful Jenkins pipeline
 
-Builds **#15 and #16** completed all stages successfully, including image publishing and the GitOps manifest update. Earlier failed runs remain visible in the build history.
+Build **#6** completed the delivery gates and archived the test, scan, image smoke-test, and deployment reports.
 
-![Jenkins pipeline stages showing successful builds 15 and 16](docs/screenshots/jenkins-pipeline.png)
+![Successful Jenkins build 6 with archived verification reports](docs/screenshots/jenkins-build-6-2026-10-18.jpg)
 
-### Argo CD: Synced and Healthy
+### Verified GitOps rollback
 
-The `demo-app-dev` Application is **Synced** and **Healthy**, with a running pod. The view shows deployment commit `beba98c` and Jenkins image tag `16-379f6ff`, connecting build #16 to the GitOps rollout.
+A live image change at `708be25` was reverted by Git commit `53fb757`. Argo CD reconciled both exact revisions; the expected image, healthy rollout, and Service HTTP response passed verification each time. The original image is restored. See the [rollback procedure and results](docs/rollback.md) and [machine-readable record](docs/evidence/rollback.json).
 
-![Argo CD showing a Synced and Healthy application with its workload tree](docs/screenshots/argocd-healthy.png)
+![Argo CD Healthy and Synced at the rollback commit 53fb757](docs/screenshots/argocd-rollback-after-2026-10-18.jpg)
 
-### Datadog cluster inventory
+### Running demo application
 
-The Kubernetes Explorer shows the `devops-portfolio` cluster's namespaces, pod statuses, CPU usage, and memory usage, including `dev`, `jenkins`, `argocd`, and `datadog`.
+The restored application served this page through its Kubernetes Service and a loopback port-forward. The page's Datadog description reflects the original architecture; monitoring is currently off.
 
-![Datadog Kubernetes namespace inventory with cluster resource usage](docs/screenshots/datadog-cluster-namespaces.png)
-
-### Datadog deployment monitoring
-
-The deployment replica monitor displays metrics over a four-hour window, with **12 OK** groups and **1 No Data** group at capture time. The [monitor overview](docs/screenshots/datadog-monitors.png) also records two active alerts; these captures document the observed state rather than an entirely healthy cluster.
-
-![Datadog deployment replica monitor with populated time-series charts](docs/screenshots/datadog-deployment-replicas.png)
+![Running NGINX demo application](docs/screenshots/demo-app-2026-10-18.jpg)
 
 ## Architecture
 
@@ -183,19 +179,35 @@ Use `helm/datadog/values.yaml` with the Datadog Helm chart. Before installation,
 
 The values target the Datadog EU site (`datadoghq.eu`), name the cluster `devops-portfolio`, and add development and project tags. They enable the Cluster Agent and Kubernetes state metrics, while disabling logs, the APM port, and the process agent. The repository does not include custom dashboards or alert definitions.
 
+## Security limitations and intended use
+
+This project demonstrates delivery concepts on a local machine. Passing its tests and vulnerability scan does not make the platform safe for operational use.
+
+| Limitation | What it means in this lab | What a real platform would need |
+| --- | --- | --- |
+| Privileged BuildKit | The build container has `privileged: true`. Malicious build instructions or a builder vulnerability could affect the node and other workloads. Kubernetes namespace RBAC does not contain this privilege. | A verified rootless configuration or isolated disposable build infrastructure. |
+| Automated pushes to `main` | Jenkins can update the deployment manifest and Argo CD deploys it automatically. Tests, scanning, serialization, and stale-update rejection reduce mistakes but do not provide independent approval. | Protected environment promotion with appropriate access controls and review. A self-merged PR adds visibility, not independent authorization. |
+| Shared build and credential boundary | Build and promotion steps share an agent pod/workspace. A compromised privileged builder could threaten credentials made available there. Moving steps into separate jobs on the same exposed node is not sufficient isolation. | Separate execution and credential boundaries, with minimum permissions and short-lived credentials. |
+| Local service security | The rebuilt lab uses loopback-bound web ports, including HTTP, and a Kubernetes version selected to match the demonstration's API target. This is not a hardened, supported service configuration. | Maintained platform versions, appropriate TLS/authentication, network controls, and operational ownership. |
+| Limited operating scope | One local node and a static NGINX page demonstrate a small delivery path, not high availability, business application correctness, or disaster recovery. | Workload-specific testing, recovery planning, and controls appropriate to the actual service. |
+
+Only trusted code should run in this lab. Do not expose its web ports to a network or connect real application data. Keep secrets outside Git. GitHub/Jenkins token permissions and expiry are external account settings: the repository documents the required scopes but cannot prove that an installed token has only those permissions. See the [credential guidance](docs/ci-verification.md#credentials-and-trust-boundaries).
+
+These limitations are retained to keep a solo portfolio project understandable and affordable to run. They are not recommendations for a development or production platform. Rootless building and reviewed environment promotion remain future experiments; they are not implemented security guarantees.
+
 ## Design choices and current scope
 
 - **Small application, visible delivery path:** a static page makes it easy to inspect the image build and deployment flow without additional application dependencies.
 - **Resource-conscious configuration:** the app runs one replica with requests of `50m` CPU and `32Mi` memory, and limits of `200m` CPU and `128Mi` memory. Jenkins also has explicit resource settings and persistence configuration.
 - **Build-specific image tags:** each application build publishes a build-specific candidate tag; promotion records its immutable digest in Git. NGINX is pinned to `1.30.6-alpine`, with the patched `libexpat=2.9.0-r0` package, and BuildKit to `v0.33.1`. Version tags make base/builder upgrades explicit; pinning those inputs by digest would strengthen reproducibility further. The Alpine tools image still uses the `3.20` release tag.
 - **Application health:** both probes request `/` on port 80. Readiness starts after 5 seconds and runs every 5 seconds; three consecutive failures remove the pod from Service endpoints. Liveness starts after 10 seconds and runs every 10 seconds; three consecutive failures trigger a container restart. Each request has a 2-second timeout.
-- **Development environment:** the repository currently defines one environment, with no ingress or TLS. CI exercises HTTP behavior, change classification, Git promotion races, deployment-state verification, and strict manifest validation. Live webhook behavior still requires the documented Jenkins acceptance checks.
-- **Lab security and promotion tradeoffs:** Jenkins pushes deployment commits directly to `main`, and its BuildKit agent runs privileged. These keep the local workflow simple; production adoption would require tighter build isolation and a reviewed promotion workflow. Jenkins plugin versions and Helm chart versions are not pinned in this repository.
-- **Verified delivery:** full build success requires the scanned and HTTP-tested digest to be deployed at the intended Git revision, with a healthy rollout and successful Service HTTP check. Validation-only and skipped jobs report their action separately. Existing screenshots predate these new gates.
+- **Demonstration environment:** the repository currently defines one environment, with no ingress or TLS. CI exercises HTTP behavior, change classification, Git promotion races, deployment-state verification, and strict manifest validation. Live webhook behavior still requires the documented Jenkins acceptance checks.
+- **Lab security and promotion tradeoffs:** Jenkins pushes deployment commits directly to `main`, and its BuildKit agent runs privileged. These keep the local workflow simple; production adoption would require tighter build isolation and a reviewed promotion workflow. The original Helm values leave plugin versions unpinned; the rebuilt local setup separately pins the Jenkins chart and all plugin archives with checksums. This does not remove the privileged-builder risk.
+- **Verified delivery:** full build success requires the scanned and HTTP-tested digest to be deployed at the intended Git revision, with a healthy rollout and successful Service HTTP check. Validation-only and skipped jobs report their action separately. The refreshed Jenkins screenshot shows this verified run; archived JSON records provide the detailed results.
 
 ## Future improvements
 
-- Pin image digests, Jenkins plugin versions, and platform chart versions for stronger reproducibility.
+- Pin remaining base/builder image inputs by digest and align the original Helm values with the rebuilt setup’s pinned chart/plugin configuration.
 - Extend the GitOps layout with staging and production promotion through pull requests or a dedicated environment repository or branch.
 - Add ingress and TLS, Datadog dashboards and alerts, and documented cluster bootstrap steps.
 - Evaluate rootless BuildKit and tighter agent permissions.

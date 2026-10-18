@@ -1,0 +1,28 @@
+{
+  "started_at": "2026-10-18T16:54:05.404617+00:00",
+  "baseline_revision": "e3a18a55fd8d135431e1cb715ba1787573cba44a",
+  "baseline_image": "ghcr.io/dionis1/flagship-demo-app@sha256:fd714f87a0fc1e35864b71e843b9f515425af777e9b30b0ac3c5aa9d28fb1033",
+  "demonstration_image": "ghcr.io/dionis1/flagship-demo-app@sha256:23db65a6b9adc0861ce58d5c33d4e9bb67b01a7aa1e112704d574c40bdd44c51",
+  "method": "Git image-only change followed by git revert; Argo CD applies both; no direct Deployment mutation",
+  "scope": "portfolio-only local lab",
+  "known_safe_candidate": "Jenkins build #5 published this image and its archived HIGH/CRITICAL scan contained zero findings",
+  "demonstration_revision": "708be25c65fd91cd12573e2d4e6b73ce8980a917",
+  "demonstration_verification": {
+    "revision": "708be25c65fd91cd12573e2d4e6b73ce8980a917",
+    "image": "ghcr.io/dionis1/flagship-demo-app@sha256:23db65a6b9adc0861ce58d5c33d4e9bb67b01a7aa1e112704d574c40bdd44c51",
+    "http": "passed"
+  },
+  "rollback_verification": {
+    "revision": "53fb75789a7a6ea79d384ed7fa82b605bef10e39",
+    "image": "ghcr.io/dionis1/flagship-demo-app@sha256:fd714f87a0fc1e35864b71e843b9f515425af777e9b30b0ac3c5aa9d28fb1033",
+    "http": "passed"
+  },
+  "rollback_revision": "53fb75789a7a6ea79d384ed7fa82b605bef10e39",
+  "rollback_status": {
+    "sync": "Synced",
+    "health": "Healthy"
+  },
+  "recorded_at": "2026-10-18T17:00:04.293130+00:00",
+  "refresh": "An administrator requested an Argo CD hard refresh after each Git push; Argo CD performed the automated reconciliation.",
+  "limitations": "Two previously scanned working images with identical static content; this demonstrates GitOps image restoration, not application failure injection or disaster recovery."
+}

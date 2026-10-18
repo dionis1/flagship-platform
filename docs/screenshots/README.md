@@ -1,5 +1,19 @@
 # Project screenshot gallery
 
+## Fresh evidence — 18 October 2026
+
+These browser captures show the rebuilt local lab. Jenkins #6 passed the full delivery flow. Argo CD shows the temporary demonstration revision and the subsequent Git revert; both passed exact-revision, image, rollout, and Service HTTP verification. See the [rollback record](../rollback.md). Datadog remained off. Screenshots document capture-time state; the lab was stopped afterwards to release RAM.
+
+![Successful Jenkins build 6](jenkins-build-6-2026-10-18.jpg)
+
+![Healthy demonstration revision 708be25 before the revert](argocd-rollback-before-2026-10-18.jpg)
+
+![Healthy restored revision 53fb757 after the revert](argocd-rollback-after-2026-10-18.jpg)
+
+![Restored demo app served through its Service](demo-app-2026-10-18.jpg)
+
+## Historical evidence — 14 October 2026
+
 Screenshots supplied by the project author from the local platform on **14 October 2026**. They capture different moments during the session, so statuses and build numbers can differ between views. The main [README](../../README.md#project-evidence) highlights the CI, GitOps, and monitoring evidence.
 
 The Jenkins and Argo CD views connect build **#16**, source revision `379f6ff`, image tag `16-379f6ff`, and deployment revision `beba98c`. These identify the captured deployment, not necessarily the latest version of the repository.
@@ -69,7 +83,3 @@ Monitor list showing 13 OK monitors and two alerts at capture time.
 Four-hour metric window with 12 OK groups and one No Data group.
 
 ![Datadog deployment replica monitor](datadog-deployment-replicas.png)
-
-## Additional evidence to capture
-
-A browser screenshot of the demo web page is not included yet. The Argo CD views show the running workload and Service; a web page capture would add evidence of the application response.

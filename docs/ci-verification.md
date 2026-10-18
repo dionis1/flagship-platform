@@ -43,6 +43,8 @@ Keep these two Jenkins credential IDs:
 - `ghcr-creds`: credentials allowed to publish/read the project's GHCR package, without unrelated repository or administrative privileges. Used only for publishing and scanning, not for the Git push.
 - `github-push`: a fine-grained, expiring token restricted to `dionis1/flagship-platform` with repository **Contents: read and write** and metadata access. No organization administration or permission to edit Actions workflows is needed. Do not reuse a broad personal token. A short-lived GitHub App installation token with equivalent repository permissions is a future alternative; it requires separately configured Jenkins token issuance/refresh.
 
+The installed credentials’ actual permissions and expiry were not audited during the portfolio verification. Before reuse, inspect their settings in GitHub: confirm the repository/package restriction, minimum permissions, an explicit expiration date, and a rotation/removal plan. Keep token values out of screenshots, reports, and Git.
+
 Actual token permissions are configured in GitHub/Jenkins and cannot be enforced by a Jenkinsfile. Audit those settings before enabling automatic delivery. Do not expose these credentials or the delivery ServiceAccount to untrusted builds.
 
 BuildKit remains privileged on a trusted lab node. This exposes a substantial host-isolation risk even with namespace RBAC; RBAC does not contain a privileged container. Do not run untrusted Dockerfiles there. Rootless builds or isolated disposable builder nodes are the next security improvement. The lightweight classification pod and infrastructure-only validation pod are unprivileged and have no API token; skipped and validation-only builds never allocate BuildKit.
