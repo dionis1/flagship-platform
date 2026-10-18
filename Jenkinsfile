@@ -9,7 +9,6 @@ pipeline {
     environment {
         IMAGE_REPO = 'ghcr.io/dionis1/flagship-demo-app'
         KUBERNETES_VERSION = '1.31.0'
-        PIPELINE_ACTION = 'skip'
     }
     stages {
         stage('Classify trusted main changes') {
