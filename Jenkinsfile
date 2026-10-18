@@ -1,344 +1,239 @@
 pipeline {
-    agent {
-        kubernetes {
-            yaml '''
+    agent none
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 25, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '15', artifactNumToKeepStr: '10'))
+    }
+    environment {
+        IMAGE_REPO = 'ghcr.io/dionis1/flagship-demo-app'
+        KUBERNETES_VERSION = '1.31.0'
+        PIPELINE_ACTION = 'skip'
+    }
+    stages {
+        stage('Classify trusted main changes') {
+            agent {
+                kubernetes {
+                    defaultContainer 'tools'
+                    yaml '''
 apiVersion: v1
 kind: Pod
 spec:
+  automountServiceAccountToken: false
   containers:
-
     - name: tools
       image: alpine:3.20
-      command:
-        - cat
-      tty: true
-      securityContext:
-        runAsUser: 0
-      resources:
-        requests:
-          cpu: "50m"
-          memory: "64Mi"
-        limits:
-          cpu: "500m"
-          memory: "256Mi"
-
-    - name: buildkit
-      image: moby/buildkit:v0.33.1
-      command:
-        - buildkitd
-        - --addr
-        - unix:///run/buildkit/buildkitd.sock
-      securityContext:
-        privileged: true
+      command: [cat]
       tty: true
       resources:
-        requests:
-          cpu: "100m"
-          memory: "128Mi"
-        limits:
-          cpu: "1000m"
-          memory: "768Mi"
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {cpu: 500m, memory: 256Mi}
 '''
-            defaultContainer 'tools'
-        }
-    }
-
-    options {
-        skipDefaultCheckout(true)
-    }
-
-    environment {
-        IMAGE_REPO = 'ghcr.io/dionis1/flagship-demo-app'
-    }
-
-    stages {
-
-        stage('Install Tools') {
-            steps {
-                sh '''
-                    echo "Installing CI tools..."
-
-                    apk add --no-cache \
-                      curl \
-                      git \
-                      ca-certificates
-
-                    curl -LO \
-                      "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
-
-                    install -m 0755 kubectl /usr/local/bin/kubectl
-                    rm -f kubectl
-
-                    echo "Installed versions:"
-                    kubectl version --client
-                    git --version
-                '''
+                }
             }
-        }
-
-        stage('Checkout') {
-            steps {
-                checkout scm
-
-                sh '''
-                    git config --global --add safe.directory "$WORKSPACE"
-
-                    echo "Repository checkout successful."
-                    git rev-parse --show-toplevel
-                    git status --short
-                '''
-            }
-        }
-
-        stage('Prepare') {
             steps {
                 script {
-                    def shortCommit = sh(
-                        script: 'git rev-parse --short=7 HEAD',
+                    // The job must load this Jenkinsfile only from trusted main.
+                    // Never configure this credentialed job to run fork/PR Jenkinsfiles.
+                    if (env.CHANGE_ID || (env.BRANCH_NAME && env.BRANCH_NAME != 'main')) {
+                        error('This delivery job accepts trusted main builds only')
+                    }
+                }
+                checkout scm
+                sh 'apk add --no-cache git python3; mkdir -p reports; git config --global --add safe.directory "$WORKSPACE"'
+                script {
+                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH
+                    if (!(branch in ['main', 'origin/main', 'refs/remotes/origin/main'])) {
+                        error('Configure SCM branch main; missing or unexpected branch identity')
+                    }
+                    env.SOURCE_REVISION = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.SOURCE_REVISION.take(7)}"
+                    env.PIPELINE_ACTION = sh(
+                        script: 'python3 ci/change_policy.py "${GIT_PREVIOUS_SUCCESSFUL_COMMIT:-}"',
                         returnStdout: true
                     ).trim()
-
-                    env.IMAGE_TAG = "${env.BUILD_NUMBER}-${shortCommit}"
+                    currentBuild.description = "${env.PIPELINE_ACTION}: ${env.SOURCE_REVISION.take(7)}"
                 }
-
-                echo "Image to build:"
-                echo "${IMAGE_REPO}:${IMAGE_TAG}"
+                sh 'python3 -m unittest discover -s tests -v'
+                stash name: 'source', includes: '**/*,.git/**', useDefaultExcludes: false,
+                      excludes: 'reports/**,.docker/**,__pycache__/**,**/__pycache__/**'
+                echo "Change policy: ${env.PIPELINE_ACTION}; no privileged pod or deployment credentials used yet"
             }
         }
-
-        stage('Validate Kubernetes YAML') {
+        stage('Validate infrastructure-only changes') {
+            when {
+                beforeAgent true
+                expression { env.PIPELINE_ACTION == 'validate' }
+            }
+            agent {
+                kubernetes {
+                    defaultContainer 'tools'
+                    yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: tools
+      image: alpine:3.20
+      command: [cat]
+      tty: true
+      resources:
+        requests: {cpu: 50m, memory: 128Mi}
+        limits: {cpu: 1000m, memory: 512Mi}
+'''
+                }
+            }
             steps {
-                sh '''
-                    echo "Validating Kubernetes manifests..."
-
-                    kubectl create \
-                      --dry-run=client \
-                      -f kubernetes/dev/namespace.yaml \
-                      -o yaml > /dev/null
-
-                    kubectl create \
-                      --dry-run=client \
-                      -f kubernetes/dev/demo-app/ \
-                      -o yaml > /dev/null
-
-                    echo "Kubernetes manifests are valid."
-                '''
+                unstash 'source'
+                sh 'git config --global --add safe.directory "$WORKSPACE"; sh ci/install-tools.sh; sh ci/validate.sh'
+            }
+            post {
+                always { archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true }
             }
         }
-
-        stage('Basic Tests') {
-            steps {
-                sh '''
-                    echo "Running repository checks..."
-
-                    test -f app/Dockerfile
-                    test -f app/index.html
-
-                    test -f kubernetes/dev/namespace.yaml
-                    test -f kubernetes/dev/demo-app/deployment.yaml
-                    test -f kubernetes/dev/demo-app/service.yaml
-
-                    test -f helm/datadog/values.yaml
-                    test -f helm/jenkins/values.yaml
-
-                    echo "All required files exist."
-                    echo "Basic tests passed."
-                '''
+        stage('Validate and deliver') {
+            when {
+                beforeAgent true
+                expression { env.PIPELINE_ACTION == 'build' }
             }
-        }
-
-        stage('Build & Push Image') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'ghcr-creds',
-                        usernameVariable: 'GHCR_USER',
-                        passwordVariable: 'GHCR_TOKEN'
-                    )
-                ]) {
-
-                    sh '''
-                        echo "Preparing GHCR authentication..."
-
-                        mkdir -p "$WORKSPACE/.docker"
-
-                        set +x
-
-                        AUTH=$(printf '%s:%s' \
-                          "$GHCR_USER" "$GHCR_TOKEN" \
-                          | base64 | tr -d '\\n')
-
-                        cat > "$WORKSPACE/.docker/config.json" <<EOF
-{
-  "auths": {
-    "ghcr.io": {
-      "auth": "$AUTH"
-    }
-  }
-}
-EOF
-
-                        chmod 600 "$WORKSPACE/.docker/config.json"
-
-                        set -x
-                    '''
-
-                    container('buildkit') {
-                        sh '''
-                            export DOCKER_CONFIG="$WORKSPACE/.docker"
-
-                            BUILDKIT_ADDR="unix:///run/buildkit/buildkitd.sock"
-
-                            echo "Waiting for BuildKit daemon..."
-
-                            COUNT=0
-
-                            until buildctl \
-                              --addr "$BUILDKIT_ADDR" \
-                              debug workers >/dev/null 2>&1
-                            do
-                                COUNT=$((COUNT + 1))
-
-                                if [ "$COUNT" -ge 30 ]; then
-                                    echo "BuildKit failed to become ready."
-                                    exit 1
-                                fi
-
-                                sleep 1
-                            done
-
-                            echo "BuildKit is ready."
-
-                            echo "Building:"
-                            echo "${IMAGE_REPO}:${IMAGE_TAG}"
-
-                            buildctl \
-                              --addr "$BUILDKIT_ADDR" \
-                              build \
-                              --frontend dockerfile.v0 \
-                              --local context=app \
-                              --local dockerfile=app \
-                              --output \
-                              type=image,name=${IMAGE_REPO}:${IMAGE_TAG},push=true
-
-                            echo "Container image pushed successfully."
-                        '''
+            agent {
+                kubernetes {
+                    defaultContainer 'tools'
+                    yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: flagship-ci
+  containers:
+    - name: tools
+      image: alpine:3.20
+      command: [cat]
+      tty: true
+      resources:
+        requests: {cpu: 50m, memory: 128Mi}
+        limits: {cpu: 1000m, memory: 768Mi}
+    - name: buildkit
+      image: moby/buildkit:v0.33.1
+      command: [buildkitd, --addr, unix:///run/buildkit/buildkitd.sock]
+      securityContext: {privileged: true}
+      resources:
+        requests: {cpu: 100m, memory: 128Mi}
+        limits: {cpu: 1000m, memory: 768Mi}
+'''
+                }
+            }
+            stages {
+                stage('Tools and manifest validation') {
+                    steps {
+                        unstash 'source'
+                        sh 'git config --global --add safe.directory "$WORKSPACE"; sh ci/install-tools.sh; sh ci/validate.sh'
                     }
-
-                    sh '''
-                        rm -rf "$WORKSPACE/.docker"
-                    '''
+                }
+                stage('Build candidate image') {
+                    when { expression { env.PIPELINE_ACTION == 'build' } }
+                    steps {
+                        withCredentials([usernamePassword(credentialsId: 'ghcr-creds',
+                            usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_TOKEN')]) {
+                            sh '''
+                                set +x
+                                umask 077
+                                mkdir -p "$WORKSPACE/.docker"
+                                python3 - <<'PY'
+import base64, json, os
+from pathlib import Path
+value = base64.b64encode((os.environ['GHCR_USER'] + ':' + os.environ['GHCR_TOKEN']).encode()).decode()
+Path('.docker/config.json').write_text(json.dumps({'auths': {'ghcr.io': {'auth': value}}}))
+PY
+                            '''
+                            container('buildkit') {
+                                sh '''
+                                    set -eu
+                                    export DOCKER_CONFIG="$WORKSPACE/.docker"
+                                    n=0
+                                    until buildctl debug workers >/dev/null 2>&1; do
+                                        n=$((n+1)); test "$n" -lt 30; sleep 1
+                                    done
+                                    buildctl build --frontend dockerfile.v0 \
+                                        --local context=app --local dockerfile=app \
+                                        --metadata-file reports/build.json \
+                                        --output "type=image,name=${IMAGE_REPO}:${IMAGE_TAG},push=true"
+                                '''
+                            }
+                        }
+                        script {
+                            env.CANDIDATE_IMAGE = sh(script: '''python3 - <<'PY'
+import json, os, re
+meta = json.load(open('reports/build.json'))
+digest = meta['containerimage.digest']
+assert re.fullmatch(r'sha256:[0-9a-f]{64}', digest)
+print(os.environ['IMAGE_REPO'] + '@' + digest)
+PY''', returnStdout: true).trim()
+                        }
+                    }
+                }
+                stage('Scan candidate image') {
+                    when { expression { env.PIPELINE_ACTION == 'build' } }
+                    steps {
+                        withCredentials([usernamePassword(credentialsId: 'ghcr-creds',
+                            usernameVariable: 'TRIVY_USERNAME', passwordVariable: 'TRIVY_PASSWORD')]) {
+                            sh '''
+                                set +x
+                                trivy image --scanners vuln --severity HIGH,CRITICAL \
+                                    --exit-code 1 --timeout 5m --format json \
+                                    --output reports/trivy.json "$CANDIDATE_IMAGE"
+                            '''
+                        }
+                    }
+                }
+                stage('HTTP test built image') {
+                    when { expression { env.PIPELINE_ACTION == 'build' } }
+                    steps {
+                        timeout(time: 3, unit: 'MINUTES') {
+                            sh 'python3 ci/kube_checks.py image --image "$CANDIDATE_IMAGE"'
+                        }
+                    }
+                }
+                stage('Promote tested digest in Git') {
+                    when { expression { env.PIPELINE_ACTION == 'build' } }
+                    steps {
+                        withCredentials([usernamePassword(credentialsId: 'github-push',
+                            usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                            sh '''
+                                set +x
+                                export GIT_ASKPASS="$WORKSPACE/ci/git-askpass.sh" GIT_TERMINAL_PROMPT=0
+                                python3 ci/promote.py --source "$SOURCE_REVISION" --image "$CANDIDATE_IMAGE"
+                            '''
+                        }
+                    }
+                }
+                stage('Verify GitOps deployment') {
+                    when { expression { env.PIPELINE_ACTION == 'build' } }
+                    steps {
+                        timeout(time: 8, unit: 'MINUTES') {
+                            sh '''
+                                python3 ci/kube_checks.py deployment --image "$CANDIDATE_IMAGE" \
+                                    --revision "$(cat reports/deployment-revision.txt)" --timeout 360
+                            '''
+                        }
+                    }
                 }
             }
-        }
-
-        stage('Update GitOps Manifest') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'github-push',
-                        usernameVariable: 'GIT_USER',
-                        passwordVariable: 'GIT_TOKEN'
-                    )
-                ]) {
-
-                    sh '''
-                        echo "Updating GitOps manifest..."
-
-                        git config --global --add safe.directory "$WORKSPACE"
-
-                        sed -i \
-                          "s#image: .*#image: ${IMAGE_REPO}:${IMAGE_TAG}#" \
-                          kubernetes/dev/demo-app/deployment.yaml
-
-                        echo "New image:"
-                        grep "image:" \
-                          kubernetes/dev/demo-app/deployment.yaml
-
-                        git config user.name "Jenkins CI"
-                        git config user.email "jenkins@localhost"
-
-                        git add kubernetes/dev/demo-app/deployment.yaml
-
-                        if git diff --cached --quiet
-                        then
-                            echo "No GitOps change required."
-                            exit 0
-                        fi
-
-                        git commit \
-                          -m "Deploy ${IMAGE_TAG} via Jenkins"
-
-                        set +x
-
-                        cat > /tmp/git-askpass.sh <<'EOF'
-#!/bin/sh
-case "$1" in
-    *Username*)
-        echo "$GIT_USER"
-        ;;
-    *Password*)
-        echo "$GIT_TOKEN"
-        ;;
-esac
-EOF
-
-                        chmod 700 /tmp/git-askpass.sh
-
-                        GIT_ASKPASS=/tmp/git-askpass.sh \
-                        GIT_TERMINAL_PROMPT=0 \
-                        git push \
-                          https://github.com/dionis1/flagship-platform.git \
-                          HEAD:main
-
-                        rm -f /tmp/git-askpass.sh
-
-                        set -x
-
-                        echo "GitOps manifest pushed successfully."
-                    '''
+            post {
+                always {
+                    archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+                    sh 'rm -rf "$WORKSPACE/.docker"'
                 }
-            }
-        }
-
-        stage('Deployment Summary') {
-            steps {
-                echo "------------------------------------"
-                echo "CI pipeline completed."
-                echo "Image:"
-                echo "${IMAGE_REPO}:${IMAGE_TAG}"
-                echo ""
-                echo "ArgoCD should now detect the Git change"
-                echo "and synchronize the application."
-                echo "------------------------------------"
             }
         }
     }
-
     post {
-
         success {
-            echo "===================================="
-            echo "CI PIPELINE SUCCESS"
-            echo "===================================="
-            echo "Published image:"
-            echo "${IMAGE_REPO}:${IMAGE_TAG}"
-            echo ""
-            echo "ArgoCD should deploy the new version."
+            echo "Completed ${env.PIPELINE_ACTION}. A build is successful only after image gates and revision-aware deployment verification."
         }
-
         failure {
-            echo "===================================="
-            echo "CI PIPELINE FAILED"
-            echo "===================================="
-            echo "Check the failed stage above."
-        }
-
-        always {
-            sh '''
-                rm -rf "$WORKSPACE/.docker" || true
-                rm -f /tmp/git-askpass.sh || true
-            '''
+            echo 'Failed: inspect the stage and archived reports. A pushed candidate is not a verified deployment.'
         }
     }
 }

@@ -1,0 +1,104 @@
+# Bootstrap once as a cluster administrator; CI cannot apply these permissions.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci-tests
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flagship-ci
+  namespace: jenkins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: image-smoke
+  namespace: ci-tests
+rules:
+  - apiGroups: ['']
+    resources: [pods]
+    verbs: [create, get, list, watch, delete]
+  - apiGroups: ['']
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: ['']
+    resources: [pods/portforward]
+    verbs: [create]
+  - apiGroups: ['']
+    resources: [events]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flagship-image-smoke
+  namespace: ci-tests
+subjects:
+  - kind: ServiceAccount
+    name: flagship-ci
+    namespace: jenkins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: image-smoke
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flagship-observer
+  namespace: dev
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [demo-app]
+    verbs: [get, watch]
+  - apiGroups: ['']
+    resources: [pods, events]
+    verbs: [get, list, watch]
+  - apiGroups: ['']
+    resources: [pods/portforward]
+    verbs: [create]
+  - apiGroups: ['']
+    resources: [services]
+    resourceNames: [demo-app]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flagship-observer
+  namespace: dev
+subjects:
+  - kind: ServiceAccount
+    name: flagship-ci
+    namespace: jenkins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: flagship-observer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flagship-argocd-observer
+  namespace: argocd
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    resourceNames: [demo-app-dev]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flagship-argocd-observer
+  namespace: argocd
+subjects:
+  - kind: ServiceAccount
+    name: flagship-ci
+    namespace: jenkins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: flagship-argocd-observer

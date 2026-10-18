@@ -30,3 +30,9 @@ values.secret.yml
 .vscode/
 .DS_Store
 Thumbs.db
+
+# CI reports, scanner caches, and Python bytecode
+/reports/
+/.cache/
+__pycache__/
+*.pyc

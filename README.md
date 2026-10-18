@@ -47,14 +47,14 @@ flowchart LR
     Datadog[Datadog agents] -.->|Cluster and workload metrics| App
 ```
 
-**Jenkins handles CI; Argo CD handles delivery.** Jenkins publishes the image and commits its tag to the deployment manifest. Argo CD watches that manifest and reconciles the cluster with Git. The pipeline does not run a deployment command against the application.
+**Jenkins handles CI; Argo CD handles delivery.** Jenkins publishes the image and commits its tested digest to the deployment manifest. Argo CD watches that manifest and reconciles the cluster with Git. The pipeline does not run a deployment command against the application.
 
 ## What this project demonstrates
 
-- **CI pipeline design:** manifest validation, repository checks, image builds, registry publishing, and automated Git updates.
-- **GitOps delivery:** automated synchronization, pruning, and drift correction through Argo CD.
+- **CI pipeline design:** strict manifest validation, tested change filtering, image builds, vulnerability scanning, HTTP smoke tests, and conflict-safe Git updates.
+- **GitOps delivery:** automated synchronization, pruning, and drift correction through Argo CD, followed by verification of the exact Git revision, image digest, rollout, and HTTP response.
 - **Ephemeral build infrastructure:** Jenkins creates Kubernetes agent pods containing tools and a BuildKit daemon.
-- **Container packaging:** a static HTML application served by `nginx:1.30.5-alpine`.
+- **Container packaging:** a static HTML application served by `nginx:1.30.6-alpine`.
 - **Kubernetes workload configuration:** a development namespace, Deployment, ClusterIP Service, HTTP readiness and liveness probes, and explicit CPU and memory requests and limits.
 - **Platform configuration:** Helm values for Jenkins resources and persistence, plus Datadog cluster metrics.
 - **Credential handling:** Jenkins credential bindings for registry and Git access, with temporary authentication files removed after builds.
@@ -77,7 +77,10 @@ flowchart LR
 
 ```text
 .
-├── Jenkinsfile                         # CI pipeline and GitOps manifest update
+├── Jenkinsfile                         # CI gates, promotion, and deployment verification
+├── ci/                                 # Test/gate scripts, schemas, and verification RBAC
+├── tests/                              # HTTP, trigger, promotion, and verification tests
+├── docs/ci-verification.md             # Setup, trust boundaries, and trigger acceptance checks
 ├── app/
 │   ├── Dockerfile                      # NGINX container image
 │   └── index.html                      # Demo page and project explanation
@@ -95,15 +98,16 @@ flowchart LR
 
 ## Delivery workflow
 
-When a Jenkins build runs, the pipeline:
+The trusted `main` job first classifies the full change range. Documentation-only and generated image-only updates skip delivery; infrastructure-only changes run validation; application or CI changes run the full flow:
 
-1. Starts a Kubernetes agent pod with an Alpine tools container and a privileged BuildKit container.
-2. Installs Git, curl, and `kubectl`, then checks out the repository.
-3. Generates an image tag using `<build-number>-<short-commit>`, linking the artifact to its build and source revision.
-4. Validates the Kubernetes manifests with `kubectl create --dry-run=client` and checks that required files exist.
-5. Builds the application image and pushes it to `ghcr.io/dionis1/flagship-demo-app`.
-6. Updates the image reference in `kubernetes/dev/demo-app/deployment.yaml` and commits the change to `main`.
-7. Reports the published image. Argo CD then detects the Git change and synchronizes the application independently.
+1. Validate Kubernetes manifests against the configured API schema and validate the Argo CD Application against its pinned CRD schema. Run the regression suite.
+2. Build and publish a candidate image using BuildKit, recording its immutable registry digest.
+3. Scan that digest with Trivy. HIGH/CRITICAL findings or scanner errors block promotion.
+4. Run the candidate in a temporary pod and require HTTP 200 plus expected application content.
+5. Fetch current `main`, reject superseded builds and competing deployments, and commit the tested image digest without force-pushing.
+6. Verify Argo CD reconciled the exact deployment commit, the expected image is rolled out and ready, and the application responds through its Service. Archive scan results and deployment diagnostics.
+
+Builds are serialized. A lightweight skipped build never launches the privileged BuildKit pod. The job does not enable webhooks automatically: test your job's trigger behavior before enabling automatic delivery. The [CI operating guide](docs/ci-verification.md) covers permissions, credential scope, trigger acceptance checks, failure behavior, and local tests. See the [verification record](docs/verification-results.md) for the checks actually run and their limits.
 
 The Argo CD Application tracks `main` at `kubernetes/dev/demo-app` and targets the `dev` namespace. Automated pruning removes managed resources deleted from Git; self-healing corrects changes made directly to managed cluster resources.
 
@@ -127,10 +131,11 @@ The repository contains application manifests and platform values, rather than a
 - A Kubernetes cluster, such as k3s, with a working `kubectl` context.
 - Jenkins installed with the plugins listed in `helm/jenkins/values.yaml`, and a Kubernetes cloud configured to launch pipeline agents.
 - Storage supporting the Jenkins persistent volume configuration.
+- The verification ServiceAccount and namespace-scoped RBAC from `ci/verification-rbac.yaml`; see the [one-time setup](docs/ci-verification.md#one-time-cluster-setup).
 - Cluster permissions and policies that allow the pipeline agent to run privileged BuildKit. The tools stage also runs as root and downloads a Linux AMD64 `kubectl` binary.
 - Argo CD installed in the `argocd` namespace, with repository access configured if required.
 - Network access to GitHub, GHCR, and the tools and images used by the pipeline.
-- Docker registry pull credentials in `dev` if the application image is private. The current Deployment does not define `imagePullSecrets`.
+- Docker registry pull credentials in `dev` and `ci-tests` if the application image is private. The current Deployment does not define `imagePullSecrets`.
 
 ### Configure Jenkins
 
@@ -143,7 +148,7 @@ Add these username/password credentials in Jenkins:
 | `ghcr-creds` | GitHub username and token authorized to publish the GHCR image |
 | `github-push` | GitHub username and token authorized to push deployment commits to the repository's `main` branch |
 
-The image repository and Git push URL are configured for `dionis1`. For your own fork, update `IMAGE_REPO` and the push URL in `Jenkinsfile`, the repository URL in the Argo CD Application, and the Deployment image reference. Update the Dockerfile's source label as well.
+The image repository and Git push URL are configured for `dionis1`. For your own fork, update `IMAGE_REPO` in `Jenkinsfile` and the default push URL in `ci/promote.py`, the repository URL in the Argo CD Application, and the Deployment image reference. Update the Dockerfile's source label as well.
 
 Configure the job's build trigger separately. If using webhooks or SCM polling, exclude the pipeline's generated deployment commits from triggering another build to avoid a build loop. Branch protection must also permit the chosen deployment update workflow.
 
@@ -154,9 +159,10 @@ With Argo CD installed and the correct cluster context selected:
 ```bash
 kubectl apply -f kubernetes/dev/namespace.yaml
 kubectl apply -f argocd/dev-demo-app.yaml
+kubectl apply -f ci/verification-rbac.yaml
 ```
 
-Run the Jenkins pipeline to publish an image and update Git. Check the Argo CD application and Kubernetes rollout:
+Run the Jenkins pipeline to test and scan a candidate image, update Git, and verify the resulting deployment. You can also inspect the Argo CD application and Kubernetes rollout manually:
 
 ```bash
 kubectl get applications.argoproj.io demo-app-dev -n argocd
@@ -177,17 +183,15 @@ The values target the Datadog EU site (`datadoghq.eu`), name the cluster `devops
 
 - **Small application, visible delivery path:** a static page makes it easy to inspect the image build and deployment flow without additional application dependencies.
 - **Resource-conscious configuration:** the app runs one replica with requests of `50m` CPU and `32Mi` memory, and limits of `200m` CPU and `128Mi` memory. Jenkins also has explicit resource settings and persistence configuration.
-- **Build-specific image tags:** each pipeline run publishes a new tag instead of reusing a shared deployment tag. NGINX is pinned to `1.30.5-alpine` and BuildKit to `v0.33.1`. Version tags make upgrades explicit, but digest pinning would provide immutable image references. The Alpine tools image still uses the `3.20` release tag.
+- **Build-specific image tags:** each application build publishes a build-specific candidate tag; promotion records its immutable digest in Git. NGINX is pinned to `1.30.6-alpine`, with the patched `libexpat=2.9.0-r0` package, and BuildKit to `v0.33.1`. Version tags make base/builder upgrades explicit; pinning those inputs by digest would strengthen reproducibility further. The Alpine tools image still uses the `3.20` release tag.
 - **Application health:** both probes request `/` on port 80. Readiness starts after 5 seconds and runs every 5 seconds; three consecutive failures remove the pod from Service endpoints. Liveness starts after 10 seconds and runs every 10 seconds; three consecutive failures trigger a container restart. Each request has a 2-second timeout.
-- **Development environment:** the repository currently defines one environment, with no ingress, TLS, or application-specific automated test suite. The pipeline's basic tests check file presence; manifest validation is a separate stage.
+- **Development environment:** the repository currently defines one environment, with no ingress or TLS. CI exercises HTTP behavior, change classification, Git promotion races, deployment-state verification, and strict manifest validation. Live webhook behavior still requires the documented Jenkins acceptance checks.
 - **Lab security and promotion tradeoffs:** Jenkins pushes deployment commits directly to `main`, and its BuildKit agent runs privileged. These keep the local workflow simple; production adoption would require tighter build isolation and a reviewed promotion workflow. Jenkins plugin versions and Helm chart versions are not pinned in this repository.
-- **Separate CI and delivery status:** Jenkins success means the image was published and the manifest update was pushed. It does not confirm that Argo CD synchronized successfully or that the rollout is healthy.
+- **Verified delivery:** full build success requires the scanned and HTTP-tested digest to be deployed at the intended Git revision, with a healthy rollout and successful Service HTTP check. Validation-only and skipped jobs report their action separately. Existing screenshots predate these new gates.
 
 ## Future improvements
 
-- Add an HTTP smoke test after deployment.
 - Pin image digests, Jenkins plugin versions, and platform chart versions for stronger reproducibility.
-- Add a lightweight image scan, such as Trivy, before publishing or promoting images, plus stricter manifest validation.
 - Extend the GitOps layout with staging and production promotion through pull requests or a dedicated environment repository or branch.
 - Add ingress and TLS, Datadog dashboards and alerts, and documented cluster bootstrap steps.
 - Evaluate rootless BuildKit and tighter agent permissions.
