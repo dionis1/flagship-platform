@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: demo-app
-          image: ghcr.io/dionis1/flagship-demo-app@sha256:fd714f87a0fc1e35864b71e843b9f515425af777e9b30b0ac3c5aa9d28fb1033
+          image: ghcr.io/dionis1/flagship-demo-app@sha256:23db65a6b9adc0861ce58d5c33d4e9bb67b01a7aa1e112704d574c40bdd44c51
           ports:
             - containerPort: 80
           readinessProbe:
