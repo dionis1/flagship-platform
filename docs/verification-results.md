@@ -56,3 +56,9 @@ No new candidate was published or promoted in that run. `github-push` and the Da
 The live verifier was additionally tested against a deliberately wrong revision on the real Healthy application: it failed as intended and removed the previous success record. Verification of the correct revision then succeeded. Argo CD subsequently synchronized the pushed runtime fixes and continued reporting Healthy.
 
 The committed local Jenkins Dockerfile was also rebuilt successfully under a 512 MiB build limit. It downloads all 66 pinned plugin archives directly and verifies their recorded SHA-256 checksums, avoiding the plugin manager's large metadata memory requirement. At idle, the rebuilt k3s node used approximately 2.1 GiB and the host retained approximately 3.1 GiB available RAM.
+
+### Credentialed live retry
+
+After restoring both Jenkins credential IDs, build #5 published a candidate to GHCR and passed Trivy scanning, but the image HTTP gate failed before promotion because kubectl inside the agent had no kubeconfig. The verifier now creates a temporary mode-0600 in-cluster context referencing the projected CA and `tokenFile` (without copying the token). Explicit local kubeconfigs remain unchanged.
+
+All **43 regression tests** pass with this change. A real pod with the `flagship-ci` ServiceAccount and no host kubeconfig successfully verified the Argo CD revision and Service HTTP response, confirming projected credentials work. Datadog is intentionally left off at the user's request.

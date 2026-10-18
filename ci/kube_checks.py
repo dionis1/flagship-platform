@@ -1,14 +1,42 @@
 """Temporary image execution and read-only GitOps deployment verification."""
 import argparse
+import atexit
 import contextlib
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
 import time
+import tempfile
 import uuid
 
 from http_smoke import check
+
+
+def configure_context(service_account=Path('/var/run/secrets/kubernetes.io/serviceaccount')):
+    """kubectl needs a kubeconfig even inside a pod; reference projected credentials."""
+    if os.environ.get('KUBECONFIG') or (Path.home() / '.kube/config').exists():
+        return
+    if not os.environ.get('KUBERNETES_SERVICE_HOST'):
+        raise RuntimeError('Set KUBECONFIG to the intended cluster before running verification')
+    token = service_account / 'token'
+    ca = service_account / 'ca.crt'
+    if not token.is_file() or not ca.is_file():
+        raise RuntimeError('CI agent has no projected service-account token/CA; check pod configuration')
+    config = {
+        'apiVersion': 'v1', 'kind': 'Config',
+        'clusters': [{'name': 'in-cluster', 'cluster': {
+            'server': 'https://kubernetes.default.svc', 'certificate-authority': str(ca)}}],
+        'users': [{'name': 'ci', 'user': {'tokenFile': str(token)}}],
+        'contexts': [{'name': 'ci', 'context': {'cluster': 'in-cluster', 'user': 'ci'}}],
+        'current-context': 'ci'}
+    with tempfile.NamedTemporaryFile(mode='w', prefix='flagship-kubeconfig-', delete=False) as file:
+        json.dump(config, file)
+        path = Path(file.name)
+    path.chmod(0o600)
+    os.environ['KUBECONFIG'] = str(path)
+    atexit.register(lambda: path.unlink(missing_ok=True))
 
 
 def kube(*args, data=None):
@@ -148,6 +176,7 @@ if __name__ == '__main__':
     parser.add_argument('--timeout', type=int, default=360)
     args = parser.parse_args()
     Path('reports').mkdir(exist_ok=True)
+    configure_context()
     if args.mode == 'image':
         Path('reports/image-smoke.json').unlink(missing_ok=True)
         smoke_image(args.image, args.namespace)

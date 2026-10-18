@@ -13,7 +13,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
 from change_policy import classify, MANIFEST
 from http_smoke import check, EXPECTED
-from kube_checks import deployed, verify, smoke_image
+from kube_checks import deployed, verify, smoke_image, configure_context
 from promote import promote
 
 IMAGE = 'ghcr.io/dionis1/flagship-demo-app@sha256:' + 'a' * 64
@@ -210,6 +210,44 @@ class HTTPTests(unittest.TestCase):
     def test_server_error_fails(self):
         with self.assertRaises(RuntimeError):
             check(self.server(500, EXPECTED), timeout=.15)
+
+
+class ContextTests(unittest.TestCase):
+    def test_projected_token_is_referenced_not_copied(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'token').write_text('never-copy-this-token')
+            (root / 'ca.crt').write_text('certificate')
+            with patch.dict(os.environ, {'KUBERNETES_SERVICE_HOST': '10.43.0.1'}, clear=True), \
+                 patch('kube_checks.Path.home', return_value=root / 'home'):
+                configure_context(root)
+                config = Path(os.environ['KUBECONFIG'])
+                try:
+                    text = config.read_text()
+                    self.assertIn('tokenFile', text)
+                    self.assertNotIn('never-copy-this-token', text)
+                    self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+                    self.assertIn('https://kubernetes.default.svc', text)
+                finally:
+                    config.unlink()
+
+    def test_explicit_local_context_is_preserved(self):
+        with patch.dict(os.environ, {'KUBECONFIG': '/private/config'}, clear=True):
+            configure_context(Path('/missing'))
+            self.assertEqual(os.environ['KUBECONFIG'], '/private/config')
+
+    def test_missing_projected_token_fails_clearly(self):
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.dict(os.environ, {'KUBERNETES_SERVICE_HOST': '10.43.0.1'}, clear=True), \
+             patch('kube_checks.Path.home', return_value=Path(directory)):
+            with self.assertRaisesRegex(RuntimeError, 'projected'):
+                configure_context(Path(directory))
+
+    def test_missing_local_context_fails_clearly(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True), \
+             patch('kube_checks.Path.home', return_value=Path(directory)):
+            with self.assertRaisesRegex(RuntimeError, 'KUBECONFIG'):
+                configure_context(Path(directory))
 
 
 class DeploymentTests(unittest.TestCase):

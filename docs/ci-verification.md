@@ -115,3 +115,5 @@ python3 ci/kube_checks.py deployment \
 Direct pushes to `main` are retained for this local development lab. A production version should have a build job publish the tested digest, then open an environment PR containing that digest. Required checks and reviewers approve the change; Argo CD watches the protected environment branch/repository. Run deployment verification after merge against the resulting environment commit. A PR without branch protection and required review is not an approval boundary.
 
 The static application is enough to demonstrate failure gates and recovery. Test bad page content, image-pull failure, an unhealthy pod, and a revert of a deployment commit before adding more infrastructure.
+
+Inside the delivery pod, the verifier builds a temporary kubeconfig referencing the projected ServiceAccount `tokenFile` and CA certificate. It does not copy tokens into artifacts and removes the context at process exit. Outside the cluster, source `local/env.sh` or set `KUBECONFIG` explicitly; local contexts are preserved.
