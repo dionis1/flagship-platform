@@ -52,7 +52,7 @@ rules:
   - apiGroups: [apps]
     resources: [deployments]
     resourceNames: [demo-app]
-    verbs: [get, watch]
+    verbs: [get, list, watch]
   - apiGroups: ['']
     resources: [pods, events]
     verbs: [get, list, watch]

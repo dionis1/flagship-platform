@@ -124,6 +124,8 @@ Open [http://localhost:8080](http://localhost:8080). Stop the container with `Ct
 
 ## Run the GitOps workflow
 
+For the rebuilt Docker-hosted local lab, see [local setup and access](local/README.md). It includes start/stop commands that preserve cluster data and reclaim RAM.
+
 ### Prerequisites
 
 The repository contains application manifests and platform values, rather than a complete cluster bootstrap. Before running the workflow, prepare:

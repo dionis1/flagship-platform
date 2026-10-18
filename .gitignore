@@ -36,3 +36,6 @@ Thumbs.db
 /.cache/
 __pycache__/
 *.pyc
+
+# Private local cluster state, kubeconfig, and tools
+/.local/

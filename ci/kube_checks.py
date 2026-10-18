@@ -12,8 +12,13 @@ from http_smoke import check
 
 
 def kube(*args, data=None):
-    return subprocess.check_output(['kubectl', '--request-timeout=10s', *args],
-                                   input=data, text=True, stderr=subprocess.STDOUT)
+    try:
+        return subprocess.check_output(['kubectl', '--request-timeout=10s', *args],
+                                       input=data, text=True, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as exc:
+        Path('reports').mkdir(exist_ok=True)
+        Path('reports/kubectl-last-error.txt').write_text(str(exc.output or exc))
+        raise
 
 
 def get(kind, name, namespace):
@@ -144,8 +149,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     Path('reports').mkdir(exist_ok=True)
     if args.mode == 'image':
+        Path('reports/image-smoke.json').unlink(missing_ok=True)
         smoke_image(args.image, args.namespace)
     else:
         if not args.revision:
             parser.error('--revision is required for deployment verification')
+        Path('reports/deployment.json').unlink(missing_ok=True)
         verify(args.revision, args.image, args.timeout)

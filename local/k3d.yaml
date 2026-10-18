@@ -1,0 +1,28 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: flagship-platform
+servers: 1
+agents: 0
+image: rancher/k3s:v1.31.14-k3s1
+kubeAPI:
+  hostIP: 127.0.0.1
+  hostPort: '6445'
+ports:
+  - port: 127.0.0.1:8080:30080
+    nodeFilters: ['server:0']
+  - port: 127.0.0.1:8081:30081
+    nodeFilters: ['server:0']
+options:
+  k3d:
+    disableLoadbalancer: false
+    timeout: 180s
+  k3s:
+    extraArgs:
+      - arg: --disable=traefik
+        nodeFilters: ['server:*']
+      - arg: --disable=servicelb
+        nodeFilters: ['server:*']
+  kubeconfig:
+    updateDefaultKubeconfig: false
+    switchCurrentContext: false

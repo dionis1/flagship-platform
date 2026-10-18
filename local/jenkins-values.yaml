@@ -1,0 +1,49 @@
+# Overlay on helm/jenkins/values.yaml for the isolated k3d rebuild.
+controller:
+  image:
+    registry: docker.io
+    repository: library/flagship-jenkins
+    tag: local
+    pullPolicy: IfNotPresent
+  installPlugins: []
+  additionalPlugins: []
+  initializeOnce: true
+  javaOpts: '-Xms128m -Xmx512m'
+  serviceType: NodePort
+  nodePort: 30080
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {cpu: '1', memory: 1Gi}
+  sidecars:
+    configAutoReload:
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {cpu: 200m, memory: 128Mi}
+  JCasC:
+    configScripts:
+      flagship-job: |
+        jobs:
+          - script: >
+              pipelineJob('flagship-platform-ci') {
+                description('Trusted main delivery job. Manual builds only until trigger acceptance checks pass.')
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote { url('https://github.com/dionis1/flagship-platform.git') }
+                        branch('*/main')
+                      }
+                    }
+                    scriptPath('Jenkinsfile')
+                    lightweight(true)
+                  }
+                }
+              }
+agent:
+  containerCap: 2
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+persistence:
+  enabled: true
+  size: 5Gi

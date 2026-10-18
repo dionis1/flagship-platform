@@ -12,9 +12,9 @@ This record distinguishes local execution from cluster-dependent acceptance chec
 - The exact CI tool bootstrap and then-current 38-test validation suite also passed in a temporary Alpine 3.20 container matching the Jenkins tools agent.
 - Agent YAML parsing, Python compilation, shell syntax checks, and Git whitespace checks.
 
-## Still required in the running lab
+## Initial limitations (before the live rebuild below)
 
-The local k3s service was inactive and its executable was unavailable during this work. No full Jenkins → GHCR → Argo CD delivery run was performed. Deployment orchestration and failure handling were tested with simulated Kubernetes responses; the actual image was executed locally in Docker.
+The local k3s service was inactive and its executable was unavailable during this work. At that point no full Jenkins → GHCR → Argo CD delivery run was performed. Deployment orchestration and failure handling were tested with simulated Kubernetes responses; the actual image was executed locally in Docker.
 
 Before enabling automatic delivery:
 
@@ -25,3 +25,16 @@ Before enabling automatic delivery:
 5. Complete the webhook/trigger acceptance checks in [the CI operating guide](ci-verification.md#trigger-policy-and-acceptance-checks).
 
 No production environment, branch protection, token permission, or webhook setting was changed by this implementation. Direct development promotion and privileged BuildKit remain explicit lab tradeoffs.
+
+## Live rebuild follow-up
+
+A subsequent retry rebuilt the lab as k3s v1.31.14 inside k3d, with a 4.5 GiB node limit, Jenkins 2.580.1, and Argo CD v3.5.5. See `local/README.md` for local endpoints, startup/shutdown, and private state handling.
+
+- Argo CD synchronized revision `3a6a949d290123ffb07296a72544981a1f774544` and reported the demo application Synced/Healthy.
+- The rebuilt candidate image passed the real Kubernetes temporary-pod HTTP test under the restricted `flagship-ci` identity.
+- The deployment verifier passed against the real Argo CD Application, Deployment, ready pod, and Service HTTP endpoint under that same identity. This checked the previously published image tag `16-379f6ff`; it does not prove publication/promotion of a new candidate digest.
+- Actual authorization checks confirmed the CI identity cannot read Secrets, patch Deployments, or list all Deployments without a name selector.
+- The live rollout test exposed a missing named-Deployment `list` permission needed by `kubectl rollout status`; the Role now grants that verb only for `demo-app`. Errors from kubectl are retained in diagnostics, and reruns remove stale success records.
+- The first real Jenkins build exposed a checkout integration issue: SCM values must be read from the map returned by `checkout(scm)` in this agent-none job. The branch/history logic now uses that map. The corrected Jenkinsfile passed the rebuilt Jenkins validator and all 39 regression tests.
+
+External GHCR/GitHub deployment credentials and the Datadog API key were absent from the saved configuration. Full new-image Jenkins delivery and Datadog monitoring still require those credentials. Automatic build triggers remain disabled pending the documented acceptance checks.

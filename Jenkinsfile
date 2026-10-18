@@ -40,17 +40,21 @@ spec:
                         error('This delivery job accepts trusted main builds only')
                     }
                 }
-                checkout scm
+                script {
+                    def checkoutInfo = checkout(scm)
+                    env.CHECKED_OUT_BRANCH = checkoutInfo.GIT_BRANCH ?: ''
+                    env.PREVIOUS_SUCCESSFUL_REVISION = checkoutInfo.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: ''
+                }
                 sh 'apk add --no-cache git python3; mkdir -p reports; git config --global --add safe.directory "$WORKSPACE"'
                 script {
-                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH
+                    def branch = env.BRANCH_NAME ?: env.CHECKED_OUT_BRANCH
                     if (!(branch in ['main', 'origin/main', 'refs/remotes/origin/main'])) {
                         error('Configure SCM branch main; missing or unexpected branch identity')
                     }
                     env.SOURCE_REVISION = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
                     env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.SOURCE_REVISION.take(7)}"
                     env.PIPELINE_ACTION = sh(
-                        script: 'python3 ci/change_policy.py "${GIT_PREVIOUS_SUCCESSFUL_COMMIT:-}"',
+                        script: 'python3 ci/change_policy.py "${PREVIOUS_SUCCESSFUL_REVISION:-}"',
                         returnStdout: true
                     ).trim()
                     currentBuild.description = "${env.PIPELINE_ACTION}: ${env.SOURCE_REVISION.take(7)}"
