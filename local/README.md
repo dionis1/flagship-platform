@@ -19,7 +19,7 @@ The Jenkins chart is pinned to 5.9.69. Its local image bundles the pipeline, Kub
 
 ## Rebuild from source
 
-Requires Docker, Python 3 with PyYAML, kubectl, and Helm on Linux AMD64. The bootstrap downloads checksum-pinned k3d, builds Jenkins with the exact recorded plugin versions, creates or starts the isolated cluster, and installs the pinned charts/manifests:
+Requires Docker, Python 3 with PyYAML, kubectl, and Helm on Linux AMD64. The bootstrap downloads checksum-pinned k3d, builds Jenkins with the exact recorded plugin versions, verifies the plugin archive checksums, creates or starts the isolated cluster, and installs the pinned charts/manifests:
 
 ```bash
 ./local/bootstrap.sh

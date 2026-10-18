@@ -42,3 +42,17 @@ External GHCR/GitHub deployment credentials and the Datadog API key were absent 
 The next live Jenkins run also exposed a Declarative environment precedence issue: a fixed top-level `PIPELINE_ACTION=skip` overrode the dynamically classified action. That fixed declaration was removed so the classifier can select the delivery stages. A successful skipped job must not be confused with a successful full delivery.
 
 The subsequent full-path run reached the separate delivery pod and revealed that Git configuration was attempted before installing Git in that fresh Alpine container. Tool bootstrap now runs before Git configuration in both validation/delivery pods. These live-run fixes are distinct from the earlier syntax and unit checks.
+
+### Latest live Jenkins result
+
+[Local build #4](http://localhost:8080/job/flagship-platform-ci/4/) checked out `d7a33c1`, selected the **build** path, provisioned both agent pods, installed the checksum-verified toolchain, validated all 12 resources, and passed **all 39 tests without skips** in the delivery agent. It then failed at the credential binding for candidate publication:
+
+```text
+Could not find credentials entry with ID 'ghcr-creds'
+```
+
+No new candidate was published or promoted in that run. `github-push` and the Datadog key are also not restored. Those external secrets are the remaining prerequisite for full new-image delivery and monitoring; they must be entered locally using `local/configure-credentials.py` or the Jenkins UI.
+
+The live verifier was additionally tested against a deliberately wrong revision on the real Healthy application: it failed as intended and removed the previous success record. Verification of the correct revision then succeeded. Argo CD subsequently synchronized the pushed runtime fixes and continued reporting Healthy.
+
+The committed local Jenkins Dockerfile was also rebuilt successfully under a 512 MiB build limit. It downloads all 66 pinned plugin archives directly and verifies their recorded SHA-256 checksums, avoiding the plugin manager's large metadata memory requirement. At idle, the rebuilt k3s node used approximately 2.1 GiB and the host retained approximately 3.1 GiB available RAM.

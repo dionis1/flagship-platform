@@ -1,3 +1,14 @@
 FROM jenkins/jenkins:2.580.1-jdk21
-COPY jenkins-plugins.txt /usr/share/jenkins/ref/plugins.txt
-RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
+COPY jenkins-plugins.txt jenkins-plugin-checksums.txt /usr/share/jenkins/ref/
+# The list includes transitive dependencies. Download exact archives directly
+# to avoid loading Jenkins' large all-versions metadata into RAM on this PC.
+RUN set -eu; mkdir -p /usr/share/jenkins/ref/plugins; \
+    while IFS=: read -r plugin version; do \
+      test -n "$plugin" || continue; \
+      curl --fail --location --silent --show-error --retry 3 \
+        --connect-timeout 10 --max-time 180 \
+        "https://updates.jenkins.io/download/plugins/${plugin}/${version}/${plugin}.hpi" \
+        -o "/usr/share/jenkins/ref/plugins/${plugin}.jpi"; \
+    done < /usr/share/jenkins/ref/jenkins-plugins.txt; \
+    cd /usr/share/jenkins/ref/plugins; \
+    sha256sum -c /usr/share/jenkins/ref/jenkins-plugin-checksums.txt
