@@ -6,7 +6,7 @@ The project models a production-style delivery workflow on a lightweight k3s clu
 
 ## Project evidence
 
-**Latest live verification — 18 October 2026:** Jenkins build **#6** passed all **43 tests**, the image scan with **zero HIGH/CRITICAL findings**, the Kubernetes image HTTP test, Git promotion, and exact-revision Argo CD/Service verification. Build **#7** then skipped the generated deployment commit without rebuilding. See the [artifact-derived evidence summary](docs/evidence/latest-delivery.json) and [verification record](docs/verification-results.md). Datadog is intentionally off in the rebuilt lab.
+**Latest live verification — 18 October 2026:** Jenkins build **#6** passed all **43 tests**, the image scan with **zero HIGH/CRITICAL findings**, the Kubernetes image HTTP test, Git promotion, and exact-revision Argo CD/Service verification. Builds **#7** and **#8** then skipped generated deployment and documentation-only commits without rebuilding. See the [artifact-derived evidence summary](docs/evidence/latest-delivery.json) and [verification record](docs/verification-results.md). Datadog is intentionally off in the rebuilt lab.
 
 Screenshots from the local platform captured on **14 October 2026** show the CI pipeline, GitOps deployment, and monitoring in operation. See the [full screenshot gallery](docs/screenshots/README.md) for additional views.
 

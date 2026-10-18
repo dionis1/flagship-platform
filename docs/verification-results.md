@@ -13,6 +13,8 @@ After the credentials were restored and the live integration fixes were applied,
 - Argo CD automatically reconciled that exact commit and became Synced/Healthy. The expected image digest, complete rollout, ready pod, and HTTP response through the Service were verified before Jenkins reported success.
 - A manually queued second run remained blocked while build #6 was active. It then ran as **build #7**, classified the generated deployment commit as `skip`, and finished successfully without another image build or Git promotion.
 
+The subsequent documentation-only commit `f73f775` was tested by **build #8**, which also finished successfully with action `skip` and performed no image publication or Git promotion.
+
 The [evidence summary](evidence/latest-delivery.json) was assembled from Jenkins' archived build metadata, Trivy report, HTTP test results, deployment result, test output, and build/queue API responses. Full build artifacts remain in the local [Jenkins build #6](http://localhost:8080/job/flagship-platform-ci/6/). Local links require this PC's lab to be running.
 
 GitHub webhook delivery remains disabled and needs its own integration checks before enabling it. Mixed-change filtering and competing external Git updates were tested with temporary repositories in the regression suite. Datadog is intentionally disabled at the user's request. The earlier records below document the failures and fixes encountered before this successful run.

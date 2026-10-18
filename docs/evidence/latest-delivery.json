@@ -1,5 +1,5 @@
 {
-  "verified_at": "2026-10-18T14:08:43.638326+00:00",
+  "verified_at": "2026-10-18T14:10:45.495328+00:00",
   "jenkins": {
     "build": 6,
     "result": "SUCCESS",
@@ -45,5 +45,13 @@
     "Snapshot from the local lab; live status can change.",
     "GitHub webhook delivery is not enabled or tested by this record.",
     "Mixed application/manifest classification and external Git races are covered by automated regression tests."
-  ]
+  ],
+  "documentation_filter": {
+    "build": 8,
+    "source_revision": "f73f7753a9b44a235033dcfd3ec3693cdf322ecf",
+    "result": "SUCCESS",
+    "action": "skip",
+    "new_image_published": false,
+    "new_deployment_commit": false
+  }
 }
